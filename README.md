@@ -1,6 +1,10 @@
-## dfs-datastores-scalding [![Build Status](https://secure.travis-ci.org/twitter/dfs-datastores-scalding.png)](http://travis-ci.org/twitter/dfs-datastores-scalding)
+## scalding-commons [![Build Status](https://secure.travis-ci.org/twitter/scalding-commons.png)](http://travis-ci.org/twitter/scalding-commons)
 
-Scalding Sources for use with the [dfs-datastores](https://www.github.com/nathanmarz/dfs-datastores) project.
+Common extensions to the [Scalding](https://www.github.com/twitter/scalding) MapReduce DSL.
+
+### Dfs-Datastores Integration
+
+Scalding-Commons includes Scalding Sources for use with the [dfs-datastores](https://www.github.com/nathanmarz/dfs-datastores) project.
 
 This library provides a `VersionedKeyValSource` that allows Scalding to write out key-value pairs of any type into a binary sequencefile. Serialization is handled through twitter-util's [Codec](https://github.com/twitter/util/blob/master/util-core/src/main/scala/com/twitter/util/Codec.scala#L60) trait.
 
@@ -34,7 +38,6 @@ VersionedKeyValSource[String,Int]("path")
 
 // This source produces version 12345:
 VersionedKeyValSource[String,Int]("path", Some(12345))
-
 ```
 
 ## Maven
