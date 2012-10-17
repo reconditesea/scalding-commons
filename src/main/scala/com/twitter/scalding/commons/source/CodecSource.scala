@@ -35,10 +35,10 @@ import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
  */
 
 object CodecSource {
-  def apply[T](path: String)(implicit codec: Codec[T, Array[Byte]], manifest: Manifest[T]) = new CodecSource[T](path)
+  def apply[T](path: String)(implicit codec: Codec[T, Array[Byte]]) = new CodecSource[T](path)
 }
 
-class CodecSource[T] private (path: String)(@transient implicit val codec: Codec[T, Array[Byte]], mf: Manifest[T]) extends Source {
+class CodecSource[T] private (path: String)(@transient implicit val codec: Codec[T, Array[Byte]]) extends Source {
   import Dsl._
 
   val fieldSym = 'encodedBytes
