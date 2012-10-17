@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package com.twitter.scalding.source
+package com.twitter.scalding.commons.source
 
 import backtype.cascading.scheme.KeyValueByteScheme
 import backtype.cascading.tap.VersionedTap
