@@ -1,4 +1,4 @@
-Dfs-Datastores-Scalding provides Scalding support for dfs-datastores.
+Scalding-Commons provides common extensions for Scalding.
 Copyright 2012 Twitter, Inc.
 
 Third Party Dependencies:

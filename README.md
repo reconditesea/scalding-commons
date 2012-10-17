@@ -42,7 +42,7 @@ VersionedKeyValSource[String,Int]("path", Some(12345))
 
 ## Maven
 
-Current version is 0.1.0. groupid="com.twitter" artifact=dfs-datastores-scalding_2.9.2".
+Current version is 0.1.0. groupid="com.twitter" artifact=scalding-commons_2.9.2".
 
 ## Authors
 

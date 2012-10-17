@@ -1,4 +1,4 @@
-name := "dfs-datastores-scalding"
+name := "scalding-commons"
 
 version := "0.1.0"
 
