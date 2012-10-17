@@ -6,16 +6,12 @@ organization := "com.twitter"
 
 scalaVersion := "2.9.2"
 
-// Use ScalaCheck
 resolvers ++= Seq(
   "sonatype-snapshots" at "http://oss.sonatype.org/content/repositories/snapshots",
   "sonatype-releases"  at "http://oss.sonatype.org/content/repositories/releases",
   "Clojars Repository" at "http://clojars.org/repo",
   "Conjars Repository" at "http://conjars.org/repo",
   "Twitter SVN Maven" at "https://svn.twitter.biz/maven-public",
-  //Can't be here when we publish it publicly
-  "Twitter Artifactory" at "http://artifactory.local.twitter.com/libs-releases-local",
-  "Twitter Artifactory Snapshots" at "http://artifactory.local.twitter.com/libs-snapshots-local"
 )
 
 libraryDependencies ++= Seq(
@@ -29,3 +25,11 @@ libraryDependencies ++= Seq(
 )
 
 parallelExecution in Test := true
+
+publishTo <<= version { (v: String) =>
+  val nexus = "https://oss.sonatype.org/"
+  if (v.trim.endsWith("SNAPSHOT"))
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  else
+    Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+}
