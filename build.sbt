@@ -11,13 +11,14 @@ resolvers ++= Seq(
   "sonatype-releases"  at "http://oss.sonatype.org/content/repositories/releases",
   "Clojars Repository" at "http://clojars.org/repo",
   "Conjars Repository" at "http://conjars.org/repo",
-  "Twitter SVN Maven" at "https://svn.twitter.biz/maven-public",
+  "Twitter SVN Maven" at "https://svn.twitter.biz/maven-public"
 )
 
 libraryDependencies ++= Seq(
   "com.twitter" % "util-core" % "5.3.10",
   "com.twitter" %% "algebird" % "0.1.2",
   "com.twitter" %% "scalding" % "0.8.0",
+  "com.twitter" %% "chill" % "0.0.2",
   "backtype" % "dfs-datastores-cascading" % "1.2.1",
   "backtype" % "dfs-datastores" % "1.2.0",
   "org.scalacheck" %% "scalacheck" % "1.10.0" % "test",

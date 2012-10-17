@@ -27,9 +27,9 @@ import cascading.tap.Tap
 import cascading.tuple.Fields
 
 import com.twitter.algebird.Monoid
+import com.twitter.chill.MeatLocker
 import com.twitter.util.Codec
 import com.twitter.scalding._
-import com.twitter.scalding.serialization.MeatLocker
 
 import org.apache.hadoop.mapred.JobConf
 import org.apache.hadoop.mapred.OutputCollector
