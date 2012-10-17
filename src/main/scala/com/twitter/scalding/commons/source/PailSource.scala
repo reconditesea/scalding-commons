@@ -76,7 +76,8 @@ object PailSource {
     new PailSource(rootPath, new CodecPailStructure[T](targetFn, validator), subPaths)
 }
 
-class PailSource[T] private (rootPath: String, structure: PailStructure[T], subPaths: Array[List[String]] = null) extends Source {
+class PailSource[T] private (rootPath: String, structure: PailStructure[T], subPaths: Array[List[String]] = null)
+extends Source with Mappable[T] {
   import Dsl._
 
   val fieldName = "pailItem"
