@@ -19,21 +19,16 @@ package com.twitter.scalding.commons.source
 import backtype.cascading.scheme.KeyValueByteScheme
 import backtype.cascading.tap.VersionedTap
 import backtype.cascading.tap.VersionedTap.TapMode
-
 import cascading.flow.FlowDef
 import cascading.pipe.Pipe
 import cascading.scheme.Scheme
 import cascading.tap.Tap
 import cascading.tuple.Fields
-
 import com.twitter.algebird.Monoid
 import com.twitter.chill.MeatLocker
-import com.twitter.util.Codec
 import com.twitter.scalding._
-
-import org.apache.hadoop.mapred.JobConf
-import org.apache.hadoop.mapred.OutputCollector
-import org.apache.hadoop.mapred.RecordReader
+import com.twitter.util.Codec
+import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
 
 /**
  * Source used to write key-value pairs as byte arrays into a versioned store.
