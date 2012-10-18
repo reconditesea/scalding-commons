@@ -14,6 +14,8 @@ resolvers ++= Seq(
   "Twitter SVN Maven" at "https://svn.twitter.biz/maven-public"
 )
 
+scalacOptions ++= Seq("-unchecked", "-deprecation")
+
 libraryDependencies ++= Seq(
   "com.twitter" % "util-core" % "5.3.10",
   "com.twitter" %% "algebird" % "0.1.2",
