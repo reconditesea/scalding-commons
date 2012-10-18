@@ -14,13 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package com.twitter.scalding.source
+package com.twitter.scalding.commons.source
 
 import cascading.pipe.Pipe
 import cascading.scheme.Scheme
 import cascading.scheme.hadoop.WritableSequenceFile
-import cascading.tap.Tap
-import cascading.tap.hadoop.Hfs
 import cascading.tuple.Fields
 import com.twitter.chill.MeatLocker
 import com.twitter.scalding._
@@ -40,32 +38,20 @@ object BytesWritableCodec extends Codec[Array[Byte], BytesWritable] {
 }
 
 object CodecSource {
-  def apply[T](path: String)(implicit codec: Bijection[T, Array[Byte]]) = new CodecSource[T](path)
+  def apply[T](paths: String*)(implicit codec: Bijection[T, Array[Byte]]) = new CodecSource[T](paths)
 }
 
-class CodecSource[T] private (path: String)(@transient implicit val codec: Bijection[T, Array[Byte]]) extends Source {
+class CodecSource[T] private (val hdfsPaths: Seq[String])(@transient implicit val codec: Bijection[T, Array[Byte]]) extends FileSource {
   import Dsl._
 
   val fieldSym = 'encodedBytes
-
   val codecBox = new MeatLocker(codec andThen BytesWritableCodec)
 
+  override def localPath = sys.error("Local mode not yet supported.")
+
   override def hdfsScheme =
-    new WritableSequenceFile(new Fields(null, fieldSym.name), classOf[BytesWritable])
+    new WritableSequenceFile(new Fields(fieldSym.name), classOf[BytesWritable])
       .asInstanceOf[Scheme[JobConf, RecordReader[_, _], OutputCollector[_, _], Array[Object], Array[Object]]]
-
-  lazy val tap = new Hfs(hdfsScheme, path)
-
-  override def createTap(readOrWrite: AccessMode)(implicit mode: Mode): Tap[_, _, _] = {
-    mode match {
-      case Hdfs(_strict, _config) =>
-        readOrWrite match {
-          case Read => castHfsTap(tap)
-          case Write => castHfsTap(tap)
-        }
-      case _ => super.createTap(readOrWrite)(mode)
-    }
-  }
 
   override def transformForRead(pipe: Pipe) =
     pipe.map((fieldSym) -> (fieldSym)) { codecBox.get.invert(_: BytesWritable) }
