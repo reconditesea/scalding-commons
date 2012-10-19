@@ -35,7 +35,13 @@ import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
  * Supports incremental updates via the monoid on V.
  */
 
-case class VersionedKeyValSource[K,V](path: String, version: Option[Long] = None)
+object VersionedKeyValSource {
+  def apply[K,V](path: String, version: Option[Long] = None)
+  (implicit keyCodec: Codec[K,Array[Byte]], valCodec: Codec[V,Array[Byte]]) =
+    new VersionedKeyValSource[K,V](path, version)
+}
+
+class VersionedKeyValSource[K,V](path: String, version: Option[Long] = None)
 (@transient implicit val keyCodec: Codec[K,Array[Byte]],
  @transient valCodec: Codec[V,Array[Byte]]) extends Source {
   import Dsl._
