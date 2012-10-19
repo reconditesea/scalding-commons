@@ -23,20 +23,6 @@ import com.twitter.scalding.Dsl._
 import java.io.Serializable
 import org.apache.thrift.TBase
 
-abstract class HourlySuffixSource(prefixTemplate: String, dateRange: DateRange)
-  extends TimePathedSource(prefixTemplate + TimePathedSource.YEAR_MONTH_DAY_HOUR + "/*", dateRange, DateOps.UTC)
-
-abstract class HourlySuffixMostRecentSource(prefixTemplate: String, dateRange: DateRange)
-  extends MostRecentGoodSource(prefixTemplate + TimePathedSource.YEAR_MONTH_DAY_HOUR + "/*", dateRange, DateOps.UTC)
-
-case class HourlySuffixTsv(prefix: String)(override implicit val dateRange: DateRange)
-  extends HourlySuffixSource(prefix, dateRange) with DelimitedScheme
-
-case class HourlySuffixCsv(prefix: String)(override implicit val dateRange: DateRange)
-  extends HourlySuffixSource(prefix, dateRange) with DelimitedScheme {
-  override val separator = ","
-}
-
 case class HourlySuffixLzoTsv(prefix: String, fs: Fields = Fields.ALL)(override implicit val dateRange: DateRange)
   extends HourlySuffixSource(prefix, dateRange) with LzoTsv {
   override val fields = fs

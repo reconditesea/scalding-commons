@@ -26,15 +26,6 @@ import com.twitter.scalding.Dsl._
 import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
 import org.apache.thrift.TBase
 
-// Scala is pickier than Java about type parameters, and Cascading's Scheme
-// declaration leaves some type parameters underspecified.  Fill in the type
-// parameters with wildcards so the Scala compiler doesn't complain.
-
-object HadoopSchemeInstance {
-  def apply(scheme: Scheme[_, _, _, _, _]) =
-    scheme.asInstanceOf[Scheme[JobConf, RecordReader[_, _], OutputCollector[_, _], _, _]]
-}
-
 trait LzoProtobuf[T <: Message] extends Mappable[T] {
   def column: Class[_]
   override def localScheme = { println("This does not work yet"); new CLTextLine }

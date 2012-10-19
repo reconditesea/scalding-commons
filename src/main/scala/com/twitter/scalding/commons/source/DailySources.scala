@@ -28,22 +28,6 @@ import org.apache.thrift.TBase
 // Retrieve implicits
 import Dsl._
 
-/**
- * Base class for logs that are stored daily
- */
-
-abstract class DailyPrefixSuffixSource(prefixTemplate: String, suffixTemplate: String, dateRange: DateRange)
-  extends TimePathedSource(prefixTemplate + TimePathedSource.YEAR_MONTH_DAY + suffixTemplate + "/*", dateRange, DateOps.UTC)
-
-abstract class DailyPrefixSuffixMostRecentSource(prefixTemplate: String, suffixTemplate: String, dateRange: DateRange)
-  extends MostRecentGoodSource(prefixTemplate + TimePathedSource.YEAR_MONTH_DAY + suffixTemplate + "/*", dateRange, DateOps.UTC)
-
-abstract class DailySuffixSource(prefixTemplate: String, dateRange: DateRange)
-  extends TimePathedSource(prefixTemplate + TimePathedSource.YEAR_MONTH_DAY + "/*", dateRange, DateOps.UTC)
-
-abstract class DailySuffixMostRecentSource(prefixTemplate: String, dateRange: DateRange)
-  extends MostRecentGoodSource(prefixTemplate + TimePathedSource.YEAR_MONTH_DAY + "/*", dateRange, DateOps.UTC)
-
 abstract class DailySuffixLzoProtobuf[T <: Message: Manifest](prefix: String, dateRange: DateRange)
   extends DailySuffixSource(prefix, dateRange) with LzoProtobuf[T] {
   def column = manifest[T].erasure
@@ -56,7 +40,7 @@ abstract class DailySuffixLzoThrift[T <: TBase[_, _]: Manifest](prefix: String, 
 
 abstract class TimePathedLongThriftSequenceFile[V <: TBase[_, _]: Manifest](f: Fields, prefix: String, dateFormat: String, dateRange: DateRange)
   extends TimePathedSource(prefix + dateFormat + "/*", dateRange, DateOps.UTC)
-  with WritableSequenceScheme
+  with WritableSequenceFileScheme
   with Serializable
   with Mappable[(Long, V)]
   with LongThriftTransformer[V] {
@@ -67,7 +51,7 @@ abstract class TimePathedLongThriftSequenceFile[V <: TBase[_, _]: Manifest](f: F
 
 abstract class MostRecentGoodLongThriftSequenceFile[V <: TBase[_, _]: Manifest](f: Fields, pattern: String, dateRange: DateRange)
   extends MostRecentGoodSource(pattern, dateRange, DateOps.UTC)
-  with WritableSequenceScheme
+  with WritableSequenceFileScheme
   with Serializable
   with Mappable[(Long, V)]
   with LongThriftTransformer[V] {
@@ -78,23 +62,6 @@ abstract class MostRecentGoodLongThriftSequenceFile[V <: TBase[_, _]: Manifest](
 
 abstract class DailySuffixLongThriftSequenceFile[V <: TBase[_, _]: Manifest](f: Fields, prefix: String, dateRange: DateRange)
   extends TimePathedLongThriftSequenceFile[V](f, prefix, TimePathedSource.YEAR_MONTH_DAY, dateRange)
-
-case class DailySuffixTsv(prefix: String, fs: Fields = Fields.ALL)(override implicit val dateRange: DateRange)
-  extends DailySuffixSource(prefix, dateRange) with DelimitedScheme {
-  override val fields = fs
-}
-
-case class DailySuffixCsv(prefix: String, fs: Fields = Fields.ALL)(override implicit val dateRange: DateRange)
-  extends DailySuffixSource(prefix, dateRange) with DelimitedScheme {
-  override val fields = fs
-  override val separator = ","
-}
-
-case class DailySuffixMostRecentCsv(prefix: String, fs: Fields = Fields.ALL)(override implicit val dateRange: DateRange)
-  extends DailySuffixMostRecentSource(prefix, dateRange) with DelimitedScheme {
-  override val fields = fs
-  override val separator = ","
-}
 
 case class DailySuffixLzoTsv(prefix: String, fs: Fields = Fields.ALL)(override implicit val dateRange: DateRange)
   extends DailySuffixSource(prefix, dateRange) with LzoTsv {

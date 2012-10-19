@@ -22,8 +22,6 @@ import com.twitter.scalding.Dsl._
 import java.io.Serializable
 import org.apache.thrift.TBase
 
-case class FixedPathTsv(path: Seq[String]) extends FixedPathSource(path: _*) with DelimitedScheme
-
 abstract class FixedPathLzoThrift[T <: TBase[_, _]: Manifest](path: String*)
   extends FixedPathSource(path: _*) with LzoThrift[T] {
   def column = manifest[T].erasure
