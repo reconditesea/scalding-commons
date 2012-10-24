@@ -71,7 +71,7 @@ object PailSource {
   (implicit codec: Codec[T,Array[Byte]], manifest: Manifest[T]) =
     new PailSource(rootPath, new CodecPailStructure[T](targetFn, validator), null)
 
-  def apply[T](rootPath: String, targetFn: (T) => List[String], validator: (List[String]) => Boolean, subPaths: Array[List[String]] = null)
+  def apply[T](rootPath: String, targetFn: (T) => List[String], validator: (List[String]) => Boolean, subPaths: Array[List[String]])
   (implicit codec: Codec[T,Array[Byte]], manifest: Manifest[T]) =
     new PailSource(rootPath, new CodecPailStructure[T](targetFn, validator), subPaths)
 }
@@ -80,6 +80,7 @@ class PailSource[T] private (rootPath: String, structure: PailStructure[T], subP
 extends Source with Mappable[T] {
   import Dsl._
 
+  override val converter = singleConverter[T]
   val fieldName = "pailItem"
 
   lazy val getTap = {
@@ -109,5 +110,4 @@ extends Source with Mappable[T] {
     Pail.create(rootPath, structure, false)
     pipe.rename((0) -> 'pailItem)
   }
-
 }
