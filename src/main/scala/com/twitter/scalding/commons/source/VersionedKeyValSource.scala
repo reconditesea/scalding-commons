@@ -19,28 +19,29 @@ package com.twitter.scalding.commons.source
 import backtype.cascading.scheme.KeyValueByteScheme
 import backtype.cascading.tap.VersionedTap
 import backtype.cascading.tap.VersionedTap.TapMode
-
 import cascading.flow.FlowDef
 import cascading.pipe.Pipe
 import cascading.scheme.Scheme
 import cascading.tap.Tap
 import cascading.tuple.Fields
-
 import com.twitter.algebird.Monoid
 import com.twitter.chill.MeatLocker
-import com.twitter.util.Codec
 import com.twitter.scalding._
-
-import org.apache.hadoop.mapred.JobConf
-import org.apache.hadoop.mapred.OutputCollector
-import org.apache.hadoop.mapred.RecordReader
+import com.twitter.util.Codec
+import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
 
 /**
  * Source used to write key-value pairs as byte arrays into a versioned store.
  * Supports incremental updates via the monoid on V.
  */
 
-case class VersionedKeyValSource[K,V](path: String, version: Option[Long] = None)
+object VersionedKeyValSource {
+  def apply[K,V](path: String, version: Option[Long] = None)
+  (implicit keyCodec: Codec[K,Array[Byte]], valCodec: Codec[V,Array[Byte]]) =
+    new VersionedKeyValSource[K,V](path, version)
+}
+
+class VersionedKeyValSource[K,V](path: String, version: Option[Long] = None)
 (@transient implicit val keyCodec: Codec[K,Array[Byte]],
  @transient valCodec: Codec[V,Array[Byte]]) extends Source {
   import Dsl._

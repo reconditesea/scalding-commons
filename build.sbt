@@ -1,6 +1,6 @@
 name := "scalding-commons"
 
-version := "0.1.0"
+version := "0.0.2"
 
 organization := "com.twitter"
 
@@ -13,6 +13,8 @@ resolvers ++= Seq(
   "Conjars Repository" at "http://conjars.org/repo",
   "Twitter SVN Maven" at "https://svn.twitter.biz/maven-public"
 )
+
+scalacOptions ++= Seq("-unchecked", "-deprecation")
 
 libraryDependencies ++= Seq(
   "com.twitter" % "util-core" % "5.3.10",
@@ -34,3 +36,30 @@ publishTo <<= version { (v: String) =>
   else
     Some("releases"  at nexus + "service/local/staging/deploy/maven2")
 }
+
+pomExtra := (
+  <url>https://github.com/twitter/scalding-commons</url>
+  <licenses>
+    <license>
+      <name>Apache 2</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+      <comments>A business-friendly OSS license</comments>
+    </license>
+  </licenses>
+  <scm>
+    <url>git@github.com:twitter/scalding-commons.git</url>
+    <connection>scm:git:git@github.com:twitter/scalding-commons.git</connection>
+  </scm>
+  <developers>
+    <developer>
+      <id>oscar</id>
+      <name>Oscar Boykin</name>
+      <url>http://twitter.com/posco</url>
+    </developer>
+    <developer>
+      <id>sritchie</id>
+      <name>Sam Ritchie</name>
+      <url>http://twitter.com/sritchie</url>
+    </developer>
+  </developers>)
