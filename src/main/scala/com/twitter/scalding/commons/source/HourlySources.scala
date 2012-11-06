@@ -20,8 +20,10 @@ import cascading.tuple.Fields
 import com.google.protobuf.Message
 import com.twitter.scalding._
 import com.twitter.scalding.Dsl._
+import com.twitter.scalding.source._
 import java.io.Serializable
 import org.apache.thrift.TBase
+
 
 case class HourlySuffixLzoTsv(prefix: String, fs: Fields = Fields.ALL)(override implicit val dateRange: DateRange)
   extends HourlySuffixSource(prefix, dateRange) with LzoTsv {

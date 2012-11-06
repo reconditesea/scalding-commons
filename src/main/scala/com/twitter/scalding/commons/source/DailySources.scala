@@ -20,6 +20,7 @@ import com.google.protobuf.Message
 import com.twitter.elephantbird.cascading2.scheme._
 import com.twitter.elephantbird.util.{ ThriftUtils, TypeRef }
 import com.twitter.scalding._
+import com.twitter.scalding.source._
 
 import cascading.tuple.Fields
 import java.io.Serializable
