@@ -47,6 +47,7 @@ Current version is 0.0.3. groupid="com.twitter" artifact=scalding-commons_2.9.2"
 ## Authors
 
 * Oscar Boykin <http://twitter.com/posco>
+* Mike Jahr <http://twitter.com/mjahr>
 * Sam Ritchie <http://twitter.com/sritchie>
 
 ## License

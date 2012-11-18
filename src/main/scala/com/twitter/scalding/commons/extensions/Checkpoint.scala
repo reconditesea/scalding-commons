@@ -59,7 +59,10 @@ import org.apache.log4j.{ Logger, LogManager }
  * --checkpoint.format: specifies a file format, either sequencefile or tsv.
  *     Default is sequencefile for HDFS, tsv for local.
  * --checkpoint.format.<name>: specifies file format for the given checkpoint.
+ *
+ * @author Mike Jahr
  */
+
 object Checkpoint {
   private val LOG: Logger = LogManager.getLogger(this.getClass)
 
