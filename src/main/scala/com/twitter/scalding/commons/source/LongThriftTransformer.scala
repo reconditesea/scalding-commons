@@ -30,8 +30,9 @@ trait LongThriftTransformer[V <: TBase[_, _]] extends Source {
   def mt: Manifest[V]
   def fields: Fields
 
-  def keyClass = classOf[LongWritable]
-  def valueClass = classOf[ThriftWritable[V]].asInstanceOf[Class[Writable]]
+  // meant to override fields within WritableSequenceFileScheme.
+  def keyType = classOf[LongWritable]
+  def valueType = classOf[ThriftWritable[V]].asInstanceOf[Class[Writable]]
   override protected def transformForRead(pipe: Pipe): Pipe = {
     new RichPipe(pipe).mapTo(fields -> fields) { v: (LongWritable, ThriftWritable[V]) =>
       v._2.setConverter(mt.erasure.asInstanceOf[Class[V]])
