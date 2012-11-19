@@ -28,14 +28,14 @@ import org.apache.thrift.TBase
 
 trait LzoProtobuf[T <: Message] extends Mappable[T] {
   def column: Class[_]
-  override def localScheme = { println("This does not work yet"); new CLTextLine }
+  override def localScheme = { println("This does not work yet"); new CLTextDelimited(sourceFields) }
   override def hdfsScheme = HadoopSchemeInstance(new LzoProtobufScheme[T](column))
   override val converter = Dsl.singleConverter[T]
 }
 
 trait LzoThrift[T <: TBase[_, _]] extends Mappable[T] {
   def column: Class[_]
-  override def localScheme = { println("This does not work yet"); new CLTextLine }
+  override def localScheme = { println("This does not work yet"); new CLTextDelimited(sourceFields) }
   override def hdfsScheme = HadoopSchemeInstance(new LzoThriftScheme[T](column))
   override val converter = Dsl.singleConverter[T]
 }
