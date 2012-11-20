@@ -15,16 +15,30 @@ limitations under the License.
 */
 
 package com.twitter.scalding.commons.source
+import cascading.pipe.Pipe
 
 import cascading.scheme.Scheme
 import cascading.scheme.local.{ TextDelimited => CLTextDelimited, TextLine => CLTextLine }
 import cascading.tuple.Fields
 import com.google.protobuf.Message
 import com.twitter.elephantbird.cascading2.scheme._
+import com.twitter.util.Bijection
 import com.twitter.scalding._
 import com.twitter.scalding.Dsl._
 import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
 import org.apache.thrift.TBase
+
+trait LzoCodec[T] extends FileSource with Mappable[T] {
+  def bijection: Bijection[T,Array[Byte]]
+  override def localPath = sys.error("Local mode not yet supported.")
+  override def hdfsScheme = HadoopSchemeInstance(new LzoByteArrayScheme)
+  override val converter = Dsl.singleConverter[T]
+  override def transformForRead(pipe: Pipe) =
+    pipe.map(0 -> 0) { bijection.invert(_: Array[Byte]) }
+
+  override def transformForWrite(pipe: Pipe) =
+    pipe.mapTo(0 -> 0) { bijection.apply(_: T) }
+}
 
 trait LzoProtobuf[T <: Message] extends Mappable[T] {
   def column: Class[_]
@@ -41,7 +55,6 @@ trait LzoThrift[T <: TBase[_, _]] extends Mappable[T] {
 }
 
 trait LzoText extends Mappable[String] {
-  def column = classOf[String]
   override def localScheme = { println("This does not work yet"); new CLTextLine }
   override def hdfsScheme = HadoopSchemeInstance(new LzoTextLine())
   override val converter = Dsl.singleConverter[String]

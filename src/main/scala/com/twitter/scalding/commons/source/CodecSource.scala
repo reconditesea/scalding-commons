@@ -25,7 +25,6 @@ import com.twitter.scalding._
 import com.twitter.util.{ Bijection, Codec }
 import java.util.Arrays
 import org.apache.hadoop.io.BytesWritable
-import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
 
 /**
  * Source used to write some type T into a WritableSequenceFile using a codec on T
@@ -41,17 +40,19 @@ object CodecSource {
   def apply[T](paths: String*)(implicit codec: Bijection[T, Array[Byte]]) = new CodecSource[T](paths)
 }
 
-class CodecSource[T] private (val hdfsPaths: Seq[String])(@transient implicit val codec: Bijection[T, Array[Byte]]) extends FileSource {
+class CodecSource[T] private (val hdfsPaths: Seq[String])(@transient implicit val codec: Bijection[T, Array[Byte]])
+extends FileSource
+with Mappable[T] {
   import Dsl._
 
   val fieldSym = 'encodedBytes
+  lazy val field = new Fields(fieldSym.name)
   val codecBox = new MeatLocker(codec andThen BytesWritableCodec)
 
+  override val converter = Dsl.singleConverter[T]
   override def localPath = sys.error("Local mode not yet supported.")
-
   override def hdfsScheme =
-    new WritableSequenceFile(new Fields(fieldSym.name), classOf[BytesWritable])
-      .asInstanceOf[Scheme[JobConf, RecordReader[_, _], OutputCollector[_, _], Array[Object], Array[Object]]]
+    HadoopSchemeInstance(new WritableSequenceFile(field, classOf[BytesWritable]))
 
   override def transformForRead(pipe: Pipe) =
     pipe.map((fieldSym) -> (fieldSym)) { codecBox.get.invert(_: BytesWritable) }
