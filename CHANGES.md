@@ -1,5 +1,9 @@
 # scalding-commons #
 
+## 0.0.5
+
+
+
 ## 0.0.4
 
 * Added com.twitter.scalding.commons.RangedArgs, for accepting pairs of arguments defining some range (dates, for example)
