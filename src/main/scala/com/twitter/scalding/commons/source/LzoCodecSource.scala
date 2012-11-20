@@ -26,10 +26,10 @@ import com.twitter.util.Bijection
  */
 
 object LzoCodecSource {
-  def apply[T](paths: String*)(implicit passedCodec: Bijection[T, Array[Byte]]) =
+  def apply[T](paths: String*)(implicit passedBijection: Bijection[T, Array[Byte]]) =
     new LzoCodec[T] {
       val hdfsPaths = paths
-      val boxed = new MeatLocker(passedCodec)
-      override def codec = boxed.get
+      val boxed = new MeatLocker(passedBijection)
+      override def bijection = boxed.get
     }
 }

@@ -29,15 +29,15 @@ import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
 import org.apache.thrift.TBase
 
 trait LzoCodec[T] extends FileSource with Mappable[T] {
-  def codec: Bijection[T,Array[Byte]]
+  def bijection: Bijection[T,Array[Byte]]
   override def localPath = sys.error("Local mode not yet supported.")
   override def hdfsScheme = HadoopSchemeInstance(new LzoByteArrayScheme)
   override val converter = Dsl.singleConverter[T]
   override def transformForRead(pipe: Pipe) =
-    pipe.map((0) -> (0)) { codec.invert(_: Array[Byte]) }
+    pipe.map(0 -> 0) { bijection.invert(_: Array[Byte]) }
 
   override def transformForWrite(pipe: Pipe) =
-    pipe.mapTo((0) -> (0)) { codec.apply(_: T) }
+    pipe.mapTo(0 -> 0) { bijection.apply(_: T) }
 }
 
 trait LzoProtobuf[T <: Message] extends Mappable[T] {
