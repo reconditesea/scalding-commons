@@ -39,6 +39,11 @@ abstract class DailySuffixLzoThrift[T <: TBase[_, _]: Manifest](prefix: String, 
   def column = manifest[T].erasure
 }
 
+abstract class DailyPrefixSuffixLzoThrift[T <: TBase[_,_] : Manifest](prefix : String, suffix : String, dateRange : DateRange)
+  extends DailyPrefixSuffixSource(prefix, suffix, dateRange) with LzoThrift[T] {
+  def column = manifest[T].erasure
+}
+
 abstract class TimePathedLongThriftSequenceFile[V <: TBase[_, _]: Manifest](f: Fields, prefix: String, dateFormat: String, dateRange: DateRange)
   extends TimePathedSource(prefix + dateFormat + "/*", dateRange, DateOps.UTC)
   with WritableSequenceFileScheme
