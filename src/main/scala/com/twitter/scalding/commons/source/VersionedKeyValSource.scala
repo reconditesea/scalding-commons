@@ -105,9 +105,11 @@ class TypedRichPipeEx[K: Ordering, V: Monoid](pipe: TypedPipe[(K,V)]) extends ja
   def writeIncremental(path: String)
   (implicit flowDef: FlowDef, mode: Mode,
    keyCodec: Codec[K,Array[Byte]],
-   valCodec: Codec[V,Array[Byte]]) = {
+   valCodec: Codec[V,Array[Byte]]) =
+     writeIncrementalSource(VersionedKeyValSource[K,V](path))
 
-    val src = VersionedKeyValSource[K,V](path)
+  def writeIncrementalSource[T <: VersionedKeyValSource[K,V]](src: T)
+  (implicit flowDef: FlowDef, mode: Mode) = {
     val conf = mode.asInstanceOf[HadoopMode].jobConf.asInstanceOf[JobConf]
     val outPipe =
       if (!src.source.resourceExists(conf))
@@ -126,7 +128,7 @@ class TypedRichPipeEx[K: Ordering, V: Monoid](pipe: TypedPipe[(K,V)]) extends ja
           .sum
       }
 
-    outPipe.write((0,1), VersionedKeyValSource[K,V](path))
+    outPipe.write((0,1), src)
   }
 }
 
@@ -140,12 +142,16 @@ class RichPipeEx(pipe: Pipe) extends java.io.Serializable {
    flowDef: FlowDef,
    mode: Mode,
    keyCodec: Codec[K,Array[Byte]],
-   valCodec: Codec[V,Array[Byte]]) = {
+   valCodec: Codec[V,Array[Byte]]) =
+     writeIncrementalSource[K,V,VersionedKeyValSource[K,V]](VersionedKeyValSource[K,V](path))
 
+  def writeIncrementalSource[K,V,T <: VersionedKeyValSource[K,V]](src: T)
+  (implicit monoid: Monoid[V],
+   flowDef: FlowDef,
+   mode: Mode) = {
     def appendToken(pipe: Pipe, token: Int) =
       pipe.mapTo((0,1) -> ('key,'value,'isNew)) { pair: (K,V) => pair :+ token }
 
-    val src = VersionedKeyValSource[K,V](path)
     val conf = new JobConf(mode.asInstanceOf[HadoopMode].jobConf)
     val outPipe =
       if (!src.source.resourceExists(conf))
@@ -159,6 +165,6 @@ class RichPipeEx(pipe: Pipe) extends java.io.Serializable {
           .project(('key,'value))
       }
 
-    outPipe.write(VersionedKeyValSource[K,V](path))
+    outPipe.write(src)
   }
 }
