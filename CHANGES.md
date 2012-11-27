@@ -2,7 +2,9 @@
 
 ## 0.0.5
 
-
+* `VersionedKeyValSource` takes a reducers argument.
+* added `writeIncrementalSource` to `RichPipeEx` and `TypedRichPipeEx`, opening these methods for use with extensions of `VersionedKeyValSource` (vs the default)
+* `VersionedKeyValSource` now works in `HadoopTest` mode.
 
 ## 0.0.4
 
