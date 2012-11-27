@@ -1,6 +1,6 @@
 name := "scalding-commons"
 
-version := "0.0.5-SNAPSHOT"
+version := "0.0.5"
 
 organization := "com.twitter"
 
