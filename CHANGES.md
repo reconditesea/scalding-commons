@@ -1,5 +1,7 @@
 # scalding-commons #
 
+## 0.0.6
+
 ## 0.0.5
 
 * `VersionedKeyValSource` takes a reducers argument.
