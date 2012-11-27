@@ -66,6 +66,17 @@ class VersionedKeyValSource[K,V](path: String, version: Option[Long] = None)
   val source = getTap(TapMode.SOURCE)
   val sink = getTap(TapMode.SINK)
 
+  def resourceExists(mode: Mode) =
+    mode match {
+      case HadoopTest(conf, buffers) => {
+        !buffers(this).isEmpty
+      }
+      case _ => {
+        val conf = new JobConf(mode.asInstanceOf[HadoopMode].jobConf)
+        !source.resourceExists(conf)
+      }
+    }
+
   override def createTap(readOrWrite: AccessMode)(implicit mode: Mode): Tap[_,_,_] = {
     mode match {
       case Hdfs(_strict, _config) =>
@@ -102,15 +113,16 @@ class TypedRichPipeEx[K: Ordering, V: Monoid](pipe: TypedPipe[(K,V)]) extends ja
 
   // VersionedKeyValSource always merges with the most recent complete
   // version
-  def writeIncremental(path: String)
+  def writeIncremental(path: String, reducers: Int = 1)
   (implicit flowDef: FlowDef, mode: Mode,
    keyCodec: Codec[K,Array[Byte]],
-   valCodec: Codec[V,Array[Byte]]) = {
+   valCodec: Codec[V,Array[Byte]]) =
+     writeIncrementalSource(VersionedKeyValSource[K,V](path), reducers)
 
-    val src = VersionedKeyValSource[K,V](path)
-    val conf = mode.asInstanceOf[HadoopMode].jobConf.asInstanceOf[JobConf]
+  def writeIncrementalSource(src: VersionedKeyValSource[K,V], reducers: Int = 1)
+  (implicit flowDef: FlowDef, mode: Mode) = {
     val outPipe =
-      if (!src.source.resourceExists(conf))
+      if (!src.resourceExists(mode))
         pipe
       else {
         val oldPairs = TypedPipe
@@ -121,12 +133,13 @@ class TypedRichPipeEx[K: Ordering, V: Monoid](pipe: TypedPipe[(K,V)]) extends ja
 
         (oldPairs ++ newPairs)
           .groupBy {  _._1 }
+          .withReducers(reducers)
           .sortBy { _._3 }
           .mapValues { _._2 }
           .sum
       }
 
-    outPipe.write((0,1), VersionedKeyValSource[K,V](path))
+    outPipe.write((0,1), src)
   }
 }
 
@@ -135,30 +148,34 @@ class RichPipeEx(pipe: Pipe) extends java.io.Serializable {
 
   // VersionedKeyValSource always merges with the most recent complete
   // version
-  def writeIncremental[K,V](path: String)
+  def writeIncremental[K,V](path: String, reducers: Int = 1)
   (implicit monoid: Monoid[V],
    flowDef: FlowDef,
    mode: Mode,
    keyCodec: Codec[K,Array[Byte]],
-   valCodec: Codec[V,Array[Byte]]) = {
+   valCodec: Codec[V,Array[Byte]]) =
+     writeIncrementalSource[K,V](VersionedKeyValSource[K,V](path), ('key, 'value), reducers)
 
+  def writeIncrementalSource[K,V](src: VersionedKeyValSource[K,V], fields: Fields, reducers: Int = 1)
+  (implicit monoid: Monoid[V],
+   flowDef: FlowDef,
+   mode: Mode) = {
     def appendToken(pipe: Pipe, token: Int) =
       pipe.mapTo((0,1) -> ('key,'value,'isNew)) { pair: (K,V) => pair :+ token }
 
-    val src = VersionedKeyValSource[K,V](path)
-    val conf = new JobConf(mode.asInstanceOf[HadoopMode].jobConf)
     val outPipe =
-      if (!src.source.resourceExists(conf))
+      if (!src.resourceExists(mode))
         pipe
       else {
         val oldPairs = appendToken(src.read, 0)
         val newPairs = appendToken(pipe, 1)
 
         (oldPairs ++ newPairs)
-          .groupBy('key) { _.sortBy('isNew).plus[V]('value) }
+          .groupBy('key) { _.reducers(reducers).sortBy('isNew).plus[V]('value) }
           .project(('key,'value))
+          .rename(('key, 'value) -> fields)
       }
 
-    outPipe.write(VersionedKeyValSource[K,V](path))
+    outPipe.write(src)
   }
 }
