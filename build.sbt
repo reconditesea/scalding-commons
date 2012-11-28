@@ -1,6 +1,6 @@
 name := "scalding-commons"
 
-version := "0.0.5"
+version := "0.0.6"
 
 organization := "com.twitter"
 
@@ -18,7 +18,7 @@ resolvers ++= Seq(
 scalacOptions ++= Seq("-unchecked")
 
 libraryDependencies ++= Seq(
-  "backtype" % "dfs-datastores-cascading" % "1.2.1",
+  "backtype" % "dfs-datastores-cascading" % "1.2.2",
   "backtype" % "dfs-datastores" % "1.2.0",
   "commons-io" % "commons-io" % "2.4",
   "com.google.protobuf" % "protobuf-java" % "2.4.1",

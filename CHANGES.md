@@ -1,5 +1,9 @@
 # scalding-commons #
 
+## 0.0.6
+
+* `VersionedKeyValSource` now has separate source and sink versions, allowing the user to sink into custom versions.
+
 ## 0.0.5
 
 * `VersionedKeyValSource` takes a reducers argument.
