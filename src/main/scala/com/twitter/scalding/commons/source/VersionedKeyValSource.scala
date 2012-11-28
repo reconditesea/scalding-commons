@@ -52,8 +52,7 @@ class VersionedKeyValSource[K,V](path: String, version: Option[Long] = None)
   val safeValCodec = new MeatLocker(valCodec)
 
   override def hdfsScheme =
-    new KeyValueByteScheme(new Fields(keyField, valField))
-      .asInstanceOf[Scheme[JobConf, RecordReader[_,_], OutputCollector[_,_], Array[Object], Array[Object]]]
+    HadoopSchemeInstance(new KeyValueByteScheme(new Fields(keyField, valField)))
 
   def getTap(mode: TapMode) = {
     val tap = new VersionedTap(path, keyField, valField, mode)
@@ -116,17 +115,23 @@ class TypedRichPipeEx[K: Ordering, V: Monoid](pipe: TypedPipe[(K,V)]) extends ja
   def writeIncremental(path: String, reducers: Int = 1)
   (implicit flowDef: FlowDef, mode: Mode,
    keyCodec: Codec[K,Array[Byte]],
-   valCodec: Codec[V,Array[Byte]]) =
-     writeIncrementalSource(VersionedKeyValSource[K,V](path), reducers)
+   valCodec: Codec[V,Array[Byte]]) = {
+    val src = VersionedKeyValSource[K,V](path)
+    writeIncrementalSource(src, src, reducers)
+  }
 
-  def writeIncrementalSource(src: VersionedKeyValSource[K,V], reducers: Int = 1)
+  // reads existing data from `fromSrc`, merges the pipe in with
+  // `Monoid[V]` and sinks all results into `toSrc`.
+  def writeIncrementalSource(fromSrc: VersionedKeyValSource[K,V],
+                             toSrc: VersionedKeyValSource[K,V],
+                             reducers: Int = 1)
   (implicit flowDef: FlowDef, mode: Mode) = {
     val outPipe =
-      if (!src.resourceExists(mode))
+      if (!fromSrc.resourceExists(mode))
         pipe
       else {
         val oldPairs = TypedPipe
-          .from[(K,V)](src.read, (0,1))
+          .from[(K,V)](fromSrc.read, (0,1))
           .map { _ :+ 0 }
 
         val newPairs = pipe.map { _ :+ 1 }
@@ -139,7 +144,7 @@ class TypedRichPipeEx[K: Ordering, V: Monoid](pipe: TypedPipe[(K,V)]) extends ja
           .sum
       }
 
-    outPipe.write((0,1), src)
+    outPipe.write((0,1), toSrc)
   }
 }
 
@@ -153,10 +158,16 @@ class RichPipeEx(pipe: Pipe) extends java.io.Serializable {
    flowDef: FlowDef,
    mode: Mode,
    keyCodec: Codec[K,Array[Byte]],
-   valCodec: Codec[V,Array[Byte]]) =
-     writeIncrementalSource[K,V](VersionedKeyValSource[K,V](path), ('key, 'value), reducers)
+   valCodec: Codec[V,Array[Byte]]) = {
+    val src = VersionedKeyValSource[K,V](path)
+    writeIncrementalSource[K,V](src, src, ('key, 'value), reducers)
+  }
 
-  def writeIncrementalSource[K,V](src: VersionedKeyValSource[K,V], fields: Fields, reducers: Int = 1)
+
+  def writeIncrementalSource[K,V](fromSrc: VersionedKeyValSource[K,V],
+                                  toSrc: VersionedKeyValSource[K,V],
+                                  fields: Fields,
+                                  reducers: Int = 1)
   (implicit monoid: Monoid[V],
    flowDef: FlowDef,
    mode: Mode) = {
@@ -164,10 +175,10 @@ class RichPipeEx(pipe: Pipe) extends java.io.Serializable {
       pipe.mapTo((0,1) -> ('key,'value,'isNew)) { pair: (K,V) => pair :+ token }
 
     val outPipe =
-      if (!src.resourceExists(mode))
+      if (!fromSrc.resourceExists(mode))
         pipe
       else {
-        val oldPairs = appendToken(src.read, 0)
+        val oldPairs = appendToken(fromSrc.read, 0)
         val newPairs = appendToken(pipe, 1)
 
         (oldPairs ++ newPairs)
@@ -176,6 +187,6 @@ class RichPipeEx(pipe: Pipe) extends java.io.Serializable {
           .rename(('key, 'value) -> fields)
       }
 
-    outPipe.write(src)
+    outPipe.write(toSrc)
   }
 }
