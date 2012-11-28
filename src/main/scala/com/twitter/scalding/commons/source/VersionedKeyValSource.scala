@@ -120,8 +120,11 @@ class TypedRichPipeEx[K: Ordering, V: Monoid](pipe: TypedPipe[(K,V)]) extends ja
    valCodec: Codec[V,Array[Byte]]) =
      writeIncrementalSource(VersionedKeyValSource[K,V](path), reducers)
 
-  // Tap reads existing data from `fromSrc`, merges the pipe in with
-  // `Monoid[V]` and sinks all results into `toSrc`.
+  // Tap reads existing data from the `sourceVersion` (or latest
+  // version) of data specified in `src`, merges the K,V pairs from
+  // the pipe in using an implicit `Monoid[V]` and sinks all results
+  // into the `sinkVersion` of data (or a new version) specified by
+  // `src`.
   def writeIncrementalSource(src: VersionedKeyValSource[K,V], reducers: Int = 1)
   (implicit flowDef: FlowDef, mode: Mode) = {
     val outPipe =
