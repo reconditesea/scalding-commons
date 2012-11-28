@@ -36,12 +36,12 @@ import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
  */
 
 object VersionedKeyValSource {
-  def apply[K,V](path: String, version: Option[Long] = None)
+  def apply[K,V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None)
   (implicit keyCodec: Codec[K,Array[Byte]], valCodec: Codec[V,Array[Byte]]) =
-    new VersionedKeyValSource[K,V](path, version)
+    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
 }
 
-class VersionedKeyValSource[K,V](path: String, version: Option[Long] = None)
+class VersionedKeyValSource[K,V](path: String, sourceVersion: Option[Long], sinkVersion: Option[Long])
 (@transient implicit val keyCodec: Codec[K,Array[Byte]],
  @transient valCodec: Codec[V,Array[Byte]]) extends Source {
   import Dsl._
@@ -52,13 +52,14 @@ class VersionedKeyValSource[K,V](path: String, version: Option[Long] = None)
   val safeValCodec = new MeatLocker(valCodec)
 
   override def hdfsScheme =
-    new KeyValueByteScheme(new Fields(keyField, valField))
-      .asInstanceOf[Scheme[JobConf, RecordReader[_,_], OutputCollector[_,_], Array[Object], Array[Object]]]
+    HadoopSchemeInstance(new KeyValueByteScheme(new Fields(keyField, valField)))
 
   def getTap(mode: TapMode) = {
     val tap = new VersionedTap(path, keyField, valField, mode)
-    if (version.isDefined)
-      tap.setVersion(version.get)
+    if (mode == TapMode.SOURCE && sourceVersion.isDefined)
+      tap.setVersion(sourceVersion.get)
+    else if (mode == TapMode.SINK && sinkVersion.isDefined)
+      tap.setVersion(sinkVersion.get)
     else
       tap
   }
@@ -119,6 +120,11 @@ class TypedRichPipeEx[K: Ordering, V: Monoid](pipe: TypedPipe[(K,V)]) extends ja
    valCodec: Codec[V,Array[Byte]]) =
      writeIncrementalSource(VersionedKeyValSource[K,V](path), reducers)
 
+  // Tap reads existing data from the `sourceVersion` (or latest
+  // version) of data specified in `src`, merges the K,V pairs from
+  // the pipe in using an implicit `Monoid[V]` and sinks all results
+  // into the `sinkVersion` of data (or a new version) specified by
+  // `src`.
   def writeIncrementalSource(src: VersionedKeyValSource[K,V], reducers: Int = 1)
   (implicit flowDef: FlowDef, mode: Mode) = {
     val outPipe =
