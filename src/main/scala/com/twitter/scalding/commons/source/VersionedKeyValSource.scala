@@ -112,20 +112,12 @@ class TypedRichPipeEx[K: Ordering, V: Monoid](pipe: TypedPipe[(K,V)]) extends ja
   import Dsl._
   import TDsl._
 
-  // VersionedKeyValSource always merges with the most recent complete
-  // version
-  def writeIncremental(path: String, reducers: Int = 1)
-  (implicit flowDef: FlowDef, mode: Mode,
-   keyCodec: Codec[K,Array[Byte]],
-   valCodec: Codec[V,Array[Byte]]) =
-     writeIncrementalSource(VersionedKeyValSource[K,V](path), reducers)
-
   // Tap reads existing data from the `sourceVersion` (or latest
   // version) of data specified in `src`, merges the K,V pairs from
   // the pipe in using an implicit `Monoid[V]` and sinks all results
   // into the `sinkVersion` of data (or a new version) specified by
   // `src`.
-  def writeIncrementalSource(src: VersionedKeyValSource[K,V], reducers: Int = 1)
+  def writeIncremental(src: VersionedKeyValSource[K,V], reducers: Int = 1)
   (implicit flowDef: FlowDef, mode: Mode) = {
     val outPipe =
       if (!src.resourceExists(mode))
@@ -154,15 +146,7 @@ class RichPipeEx(pipe: Pipe) extends java.io.Serializable {
 
   // VersionedKeyValSource always merges with the most recent complete
   // version
-  def writeIncremental[K,V](path: String, reducers: Int = 1)
-  (implicit monoid: Monoid[V],
-   flowDef: FlowDef,
-   mode: Mode,
-   keyCodec: Codec[K,Array[Byte]],
-   valCodec: Codec[V,Array[Byte]]) =
-     writeIncrementalSource[K,V](VersionedKeyValSource[K,V](path), ('key, 'value), reducers)
-
-  def writeIncrementalSource[K,V](src: VersionedKeyValSource[K,V], fields: Fields, reducers: Int = 1)
+  def writeIncremental[K,V](src: VersionedKeyValSource[K,V], fields: Fields, reducers: Int = 1)
   (implicit monoid: Monoid[V],
    flowDef: FlowDef,
    mode: Mode) = {
