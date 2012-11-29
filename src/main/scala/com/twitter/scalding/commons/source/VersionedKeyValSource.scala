@@ -41,7 +41,7 @@ object VersionedKeyValSource {
     new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
 }
 
-class VersionedKeyValSource[K,V](path: String, sourceVersion: Option[Long], sinkVersion: Option[Long])
+class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Long], val sinkVersion: Option[Long])
 (@transient implicit val keyCodec: Codec[K,Array[Byte]],
  @transient valCodec: Codec[V,Array[Byte]]) extends Source {
   import Dsl._
@@ -70,7 +70,7 @@ class VersionedKeyValSource[K,V](path: String, sourceVersion: Option[Long], sink
   def resourceExists(mode: Mode) =
     mode match {
       case HadoopTest(conf, buffers) => {
-        !buffers(this).isEmpty
+        buffers.get(this) map { !_.isEmpty } getOrElse false
       }
       case _ => {
         val conf = new JobConf(mode.asInstanceOf[HadoopMode].jobConf)
@@ -100,6 +100,19 @@ class VersionedKeyValSource[K,V](path: String, sourceVersion: Option[Long], sink
       (safeKeyCodec.get.encode(pair._1), safeValCodec.get.encode(pair._2))
     }
   }
+
+  override def toString =
+    "%s path:%s,sourceVersion:%s,sinkVersion:%s".format(getClass(), path, sourceVersion, sinkVersion)
+
+  override def equals(other: Any) =
+    if (other.isInstanceOf[VersionedKeyValSource[K, V]]) {
+      val otherSrc = other.asInstanceOf[VersionedKeyValSource[K, V]]
+      otherSrc.path == path && otherSrc.sourceVersion == sourceVersion && otherSrc.sinkVersion == sinkVersion
+    } else {
+      false
+    }
+
+  override def hashCode = toString.hashCode
 }
 
 object RichPipeEx extends FieldConversions with TupleConversions with java.io.Serializable {
