@@ -1,5 +1,9 @@
 # scalding-commons #
 
+## 0.0.7
+
+* Modify `VersionedKeyValSource` api to match README (change `writeIncrementalSource` to `writeIncremental`, remove old writeIncremental)
+
 ## 0.0.6
 
 * `VersionedKeyValSource` now has separate source and sink versions, allowing the user to sink into custom versions.
