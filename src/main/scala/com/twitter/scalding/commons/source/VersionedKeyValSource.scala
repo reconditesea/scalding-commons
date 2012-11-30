@@ -25,160 +25,128 @@ import cascading.scheme.Scheme
 import cascading.tap.Tap
 import cascading.tuple.Fields
 import com.twitter.algebird.Monoid
-import com.twitter.bijection.Bijection
+import com.twitter.bijection.{ Bijection, Pivot }
 import com.twitter.chill.MeatLocker
 import com.twitter.scalding._
-import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
+import com.twitter.util.Codec
+import org.apache.hadoop.mapred.JobConf
 
 /**
  * Source used to write key-value pairs as byte arrays into a versioned store.
  * Supports incremental updates via the monoid on V.
  */
 
-object VersionedKeyValSource {
-  def apply[K,V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None)
-  (implicit codec: Bijection[(K,V),(Array[Byte],Array[Byte])]) =
-    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
+trait KeyValProgression[K,V] extends PipeTransformer {
+  def toSource(implicit bij: Bijection[(K,V), (Array[Byte],Array[Byte])]): BinaryVersionedSource
+  def incremental(reducers: Int)(implicit monoid: Monoid[V], flowDef: FlowDef, mode: Mode): VersionedKeyValSource[K,V]
+  def pack[K1,K2](reducers: Int)(implicit pivot: Pivot[(K,V),K1,(K2,V)]): VersionedKeyValSource[K1,Map[K2,Iterable[V]]]
 }
 
-class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Long], val sinkVersion: Option[Long])
-(implicit @transient codec: Bijection[(K,V),(Array[Byte],Array[Byte])]) extends Source with Mappable[(K,V)] {
+object VersionedKeyValSource {
+  val DEFAULT_KEY_FIELD = "key"
+  val DEFAULT_VALUE_FIELD = "value"
+  /**
+  * Returns a versioned key-value source that transforms kv-pairs to
+  * byte-only sequencefiles and back.
+  */
+  def apply[K,V](path: String,
+                 sourceVersion: Option[Long] = None,
+                 sinkVersion: Option[Long] = None,
+                 keyField: String = DEFAULT_KEY_FIELD,
+                 valField: String = DEFAULT_VALUE_FIELD)
+  (implicit bijection: Bijection[(K,V), (Array[Byte],Array[Byte])]) =
+    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion, keyField, valField).toSource
+
+  /**
+   * Returns a VersionedKeyValSource that performs an incremental
+   * update on the previous version (or sourceVersion) before
+   * converting to bytes.
+   */
+  def incremental[K,V](path: String,
+                       sourceVersion: Option[Long] = None,
+                       sinkVersion: Option[Long] = None,
+                       keyField: String = DEFAULT_KEY_FIELD,
+                       valField: String = DEFAULT_VALUE_FIELD,
+                       reducers: Int = 1)
+  (implicit monoid: Monoid[V], bijection: Bijection[(K,V), (Array[Byte],Array[Byte])], flowDef: FlowDef, mode: Mode) =
+    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion, keyField, valField)
+      .incremental(reducers)
+      .toSource
+
+  /** Returns a VersionedKeyValSource that pivots kv-pairs out of the
+   * original K,V type into pairs of K1,Map[K2,List[V]]. Reading
+   * reconstructs the original kv pairs.
+   */
+  def packed[K,K1,K2,V](path: String,
+                        sourceVersion: Option[Long] = None,
+                        sinkVersion: Option[Long] = None,
+                        keyField: String = DEFAULT_KEY_FIELD,
+                        valField: String = DEFAULT_VALUE_FIELD,
+                        reducers: Int = 1)
+  (implicit bijection: Bijection[K,(K1,K2)], serBij: Bijection[(K1,Map[K2,List[V]]), (Array[Byte],Array[Byte])]) =
+     new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion, keyField, valField)
+      .pack(reducers)
+      .toSource
+
+  // Returns a VersionedKeyValSource that performs an incremental
+  // merge before applying packing operations and serialization (on
+  // write).
+  def packedIncremental[K,K1,K2,V](path: String,
+                                   sourceVersion: Option[Long] = None,
+                                   sinkVersion: Option[Long] = None,
+                                   incrementReducers: Int = 1,
+                                   packReducers: Int = 1,
+                                   keyField: String = DEFAULT_KEY_FIELD,
+                                   valField: String = DEFAULT_VALUE_FIELD)
+  (implicit monoid: Monoid[V],
+   bijection: Bijection[K,(K1,K2)],
+   serBij: Bijection[(K1,Map[K2,List[V]]),(Array[Byte],Array[Byte])],
+   flowDef: FlowDef,
+   mode: Mode) =
+     new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion, keyField, valField)
+      .incremental(incrementReducers)
+      .pack(packReducers)
+      .toSource
+}
+
+class VersionedKeyValSource[K,V](path: String,
+                                 sourceVersion: Option[Long],
+                                 sinkVersion: Option[Long],
+                                 override val keyField: String,
+                                 override val valField: String)
+extends VersionedSource[(K,V)](path, sourceVersion, sinkVersion)
+with RenameTransformer { self =>
   import Dsl._
-
-  val keyField = "key"
-  val valField = "value"
-  val codecBox = MeatLocker(codec)
-
-  override val converter = implicitly[TupleConverter[(K,V)]]
 
   override def hdfsScheme =
     HadoopSchemeInstance(new KeyValueByteScheme(new Fields(keyField, valField)))
 
-  def getTap(mode: TapMode) = {
-    val tap = new VersionedTap(path, hdfsScheme, mode)
-    if (mode == TapMode.SOURCE && sourceVersion.isDefined)
-      tap.setVersion(sourceVersion.get)
-    else if (mode == TapMode.SINK && sinkVersion.isDefined)
-      tap.setVersion(sinkVersion.get)
-    else
-      tap
-  }
-
-  val source = getTap(TapMode.SOURCE)
-  val sink = getTap(TapMode.SINK)
-
-  def resourceExists(mode: Mode) =
-    mode match {
-      case HadoopTest(conf, buffers) => {
-        buffers.get(this) map { !_.isEmpty } getOrElse false
-      }
-      case _ => {
-        val conf = new JobConf(mode.asInstanceOf[HadoopMode].jobConf)
-        source.resourceExists(conf)
-      }
+  def toSource(implicit bij: Bijection[(K,V),(Array[Byte],Array[Byte])]) =
+    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion, keyField, valField) with KeyValueBijectionTransformer[K,V,Array[Byte],Array[Byte]] {
+      override val bijection = implicitly[Bijection[(K,V),(Array[Byte],Array[Byte])]]
+      override def onRead(pipe: Pipe) = this.onRead(self.onRead(pipe))
+      override def onWrite(pipe: Pipe) = self.onWrite(this.onWrite(pipe))
     }
 
-  override def createTap(readOrWrite: AccessMode)(implicit mode: Mode): Tap[_,_,_] = {
-    mode match {
-      case Hdfs(_strict, _config) =>
-        readOrWrite match {
-          case Read  => castHfsTap(source)
-          case Write => castHfsTap(sink)
-        }
-      case _ => super.createTap(readOrWrite)(mode)
+  def incremental(numReducers: Int)
+  (implicit mv: Monoid[V], flowDef: FlowDef, mode: Mode): VersionedKeyValSource[K,V] = {
+    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion, keyField, valField) with IncrementalTransformer[K,V] {
+      override implicit val monoid = mv
+      // TODO: KeyVal should accept a supplier function that returns
+      // an Option[Pipe]. By default, return None -- at the last
+      // minute, in the final step, replace this business with the
+      // proper resourceExists shit.
+      override def baseSrc = if (resourceExists(mode)) Some(read) else None
+      override def incrementalReducers = numReducers
+      override def onRead(pipe: Pipe) = this.onRead(self.onRead(pipe))
+      override def onWrite(pipe: Pipe) = self.onWrite(this.onWrite(pipe))
     }
   }
-
-  override def transformForRead(pipe: Pipe) = {
-    pipe.map((keyField, valField) -> (keyField, valField)) { pair: (Array[Byte],Array[Byte]) =>
-      codecBox.get.invert(pair)
+  def pack[K1,K2](reducers: Int)(implicit bijection: Bijection[K,(K1,K2)], serBij: Bijection[(K1,Map[K2,List[V]]), (Array[Byte],Array[Byte])]) =
+    new VersionedKeyValSource[K1,Map[K2,List[V]]](path, sourceVersion, sinkVersion, keyField, valField) with PackTransformer[K,K1,K2,V] {
+      override val lens = bijection
+      override val packReducers = reducers
+      override def onRead(pipe: Pipe) = this.onRead(self.onRead(pipe))
+      override def onWrite(pipe: Pipe) = self.onWrite(this.onWrite(pipe))
     }
-  }
-
-  override def transformForWrite(pipe: Pipe) = {
-    pipe.mapTo((0,1) -> (keyField, valField)) { pair: (K,V) =>
-      codecBox.get.apply(pair)
-    }
-  }
-
-  override def toString =
-    "%s path:%s,sourceVersion:%s,sinkVersion:%s".format(getClass(), path, sourceVersion, sinkVersion)
-
-  override def equals(other: Any) =
-    if (other.isInstanceOf[VersionedKeyValSource[K, V]]) {
-      val otherSrc = other.asInstanceOf[VersionedKeyValSource[K, V]]
-      otherSrc.path == path && otherSrc.sourceVersion == sourceVersion && otherSrc.sinkVersion == sinkVersion
-    } else {
-      false
-    }
-
-  override def hashCode = toString.hashCode
-}
-
-object RichPipeEx extends FieldConversions with TupleConversions with java.io.Serializable {
-  implicit def pipeToRichPipeEx(pipe: Pipe): RichPipeEx = new RichPipeEx(pipe)
-  implicit def typedPipeToRichPipeEx[K: Ordering, V: Monoid](pipe: TypedPipe[(K,V)]) =
-    new TypedRichPipeEx(pipe)
-}
-
-class TypedRichPipeEx[K: Ordering, V: Monoid](pipe: TypedPipe[(K,V)]) extends java.io.Serializable {
-  import Dsl._
-  import TDsl._
-
-  // Tap reads existing data from the `sourceVersion` (or latest
-  // version) of data specified in `src`, merges the K,V pairs from
-  // the pipe in using an implicit `Monoid[V]` and sinks all results
-  // into the `sinkVersion` of data (or a new version) specified by
-  // `src`.
-  def writeIncremental(src: VersionedKeyValSource[K,V], reducers: Int = 1)
-  (implicit flowDef: FlowDef, mode: Mode) = {
-    val outPipe =
-      if (!src.resourceExists(mode))
-        pipe
-      else {
-        val oldPairs = TypedPipe
-          .from[(K,V)](src.read, (0,1))
-          .map { _ :+ 0 }
-
-        val newPairs = pipe.map { _ :+ 1 }
-
-        (oldPairs ++ newPairs)
-          .groupBy {  _._1 }
-          .withReducers(reducers)
-          .sortBy { _._3 }
-          .mapValues { _._2 }
-          .sum
-      }
-
-    outPipe.write((0,1), src)
-  }
-}
-
-class RichPipeEx(pipe: Pipe) extends java.io.Serializable {
-  import Dsl._
-
-  // VersionedKeyValSource always merges with the most recent complete
-  // version
-  def writeIncremental[K,V](src: VersionedKeyValSource[K,V], fields: Fields, reducers: Int = 1)
-  (implicit monoid: Monoid[V],
-   flowDef: FlowDef,
-   mode: Mode) = {
-    def appendToken(pipe: Pipe, token: Int) =
-      pipe.mapTo((0,1) -> ('key,'value,'isNew)) { pair: (K,V) => pair :+ token }
-
-    val outPipe =
-      if (!src.resourceExists(mode))
-        pipe
-      else {
-        val oldPairs = appendToken(src.read, 0)
-        val newPairs = appendToken(pipe, 1)
-
-        (oldPairs ++ newPairs)
-          .groupBy('key) { _.reducers(reducers).sortBy('isNew).plus[V]('value) }
-          .project(('key,'value))
-          .rename(('key, 'value) -> fields)
-      }
-
-    outPipe.write(src)
-  }
 }
