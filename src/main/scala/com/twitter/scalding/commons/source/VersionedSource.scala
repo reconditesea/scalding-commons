@@ -48,7 +48,7 @@ class VersionedSource(val path: String, val sourceVersion: Option[Long], val sin
       }
       case _ => {
         val conf = new JobConf(mode.asInstanceOf[HadoopMode].jobConf)
-        !source.resourceExists(conf)
+        source.resourceExists(conf)
       }
     }
 
