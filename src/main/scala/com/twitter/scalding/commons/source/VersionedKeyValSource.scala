@@ -47,12 +47,65 @@ with RenameTransformer { self =>
 trait KeyValProgression[K,V] extends PipeTransformer {
   def toSource(implicit kCodec: Codec[K, Array[Byte]], vCodec: Codec[V, Array[Byte]]): BinaryVersionedSource
   def incremental(reducers: Int)(implicit monoid: Monoid[V], flowDef: FlowDef, mode: Mode): VersionedKeyValSource[K,V]
-  def pack[K1,K2](implicit codec: Codec[K,(K1,K2)]): VersionedKeyValSource[K1,Map[K2,List[V]]]
+  def pack[K1,K2](reducers: Int)(implicit codec: Codec[K,(K1,K2)]): VersionedKeyValSource[K1,Map[K2,List[V]]]
 }
 
 object VersionedKeyValSource {
-  def apply[K,V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None) =
-    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
+
+  // Returns a versioned key-value source that transforms kv-pairs to
+  // byte-only sequencefiles and back.
+  def apply[K,V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None)
+  (implicit kCodec: Codec[K,Array[Byte]], vCodec: Codec[V,Array[Byte]]) =
+    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion).toSource
+
+  // Returns a VersionedKeyValSource that performs an incremental
+  // update on the previous version (or sourceVersion) before
+  // converting to bytes.
+  def incremental[K,V](path: String,
+                       sourceVersion: Option[Long] = None,
+                       sinkVersion: Option[Long] = None,
+                       reducers: Int = 1)
+  (implicit monoid: Monoid[V],
+   kCodec: Codec[K,Array[Byte]],
+   vCodec: Codec[V,Array[Byte]],
+   flowDef: FlowDef,
+   mode: Mode) =
+     new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
+      .incremental(reducers)
+      .toSource
+
+  // Returns a VersionedKeyValSource that pivots kv-pairs out of the
+  // original K,V type into pairs of K1,Map[K2,List[V]]. Reading
+  // reconstructs the original kv pairs.
+  def packed[K,K1,K2,V](path: String,
+                        sourceVersion: Option[Long] = None,
+                        sinkVersion: Option[Long] = None,
+                        reducers: Int = 1)
+  (implicit codec: Codec[K,(K1,K2)],
+   kCodec: Codec[K1,Array[Byte]],
+   vCodec: Codec[Map[K2,List[V]],Array[Byte]]) =
+     new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
+      .pack(reducers)
+      .toSource
+
+  // Returns a VersionedKeyValSource that performs an incremental
+  // merge before applying packing operations and serialization (on
+  // write).
+  def packedIncremental[K,K1,K2,V](path: String,
+                                   sourceVersion: Option[Long] = None,
+                                   sinkVersion: Option[Long] = None,
+                                   incrementReducers: Int = 1,
+                                   packReducers: Int = 1)
+  (implicit monoid: Monoid[V],
+   codec: Codec[K,(K1,K2)],
+   kCodec: Codec[K1,Array[Byte]],
+   vCodec: Codec[Map[K2,List[V]],Array[Byte]],
+   flowDef: FlowDef,
+   mode: Mode) =
+     new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
+      .incremental(incrementReducers)
+      .pack(packReducers)
+      .toSource
 }
 
 class VersionedKeyValSource[K,V](path: String, sourceVersion: Option[Long], sinkVersion: Option[Long])
@@ -152,7 +205,7 @@ trait IncrementalTransformer[K, V] extends PipeTransformer { self =>
 
   implicit def monoid: Monoid[V]
   def baseSrc: Option[Pipe]
-  def reducers: Int = 1
+  def incrementalReducers: Int = 1
 
   override def onRead(pipe: Pipe) = super.onRead(pipe)
   override def onWrite(pipe: Pipe) =
@@ -161,7 +214,7 @@ trait IncrementalTransformer[K, V] extends PipeTransformer { self =>
       val oldPairs = appendToken(src, fnames, 0)
       val newPairs = appendToken(pipe, fnames, 1)
       (oldPairs ++ newPairs)
-        .groupBy('key) { _.reducers(reducers).sortBy('isNew).plus[V]('value) }
+        .groupBy('key) { _.reducers(incrementalReducers).sortBy('isNew).plus[V]('value) }
         .project(('key, 'value))
     } getOrElse pipe)
 }
@@ -169,6 +222,7 @@ trait IncrementalTransformer[K, V] extends PipeTransformer { self =>
 trait PackTransformer[K, K1, K2, V] extends PipeTransformer {
   import Dsl._
 
+  def packReducers: Int
   def innerCodec: Codec[K, (K1, K2)]
 
   override def onRead(pipe: Pipe) =
