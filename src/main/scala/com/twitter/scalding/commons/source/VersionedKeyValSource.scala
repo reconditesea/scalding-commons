@@ -35,17 +35,6 @@ import org.apache.hadoop.mapred.JobConf
  * Supports incremental updates via the monoid on V.
  */
 
-/*
-object VersionedKeyValSource {
-  def apply[K, V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None)(implicit keyCodec: Codec[K, Array[Byte]], valCodec: Codec[V, Array[Byte]]) =
-    new VersionedKeyValSource[K, V](path, sourceVersion, sinkVersion)
-}
-
-class PackedVersionedKeyValSource[K, K1, K2, V](path: String, sourceVersion: Option[Long], sinkVersion: Option[Long])(implicit keyCodec: Codec[K1, Array[Byte]], valCodec: Codec[Map[K2, List[V]], Array[Byte]])
-  extends VersionedKeyValSource[K1, Map[K2, List[V]]](path, sourceVersion, sinkVersion)
-  with Mappable[(K, V)]
-*/
-
 class BinaryVersionedSource(path: String, sourceVersion: Option[Long], sinkVersion: Option[Long])
 extends VersionedSource(path, sourceVersion, sinkVersion)
 with RenameTransformer { self =>
@@ -55,58 +44,50 @@ with RenameTransformer { self =>
   override def hdfsScheme = HadoopSchemeInstance(new KeyValueByteScheme(new Fields(keyField, valField)))
 }
 
-trait KeyValThing[K,V] {
+trait KeyValThing[K,V] extends PipeTransformer {
   def toSource(implicit kCodec: Codec[K, Array[Byte]], vCodec: Codec[V, Array[Byte]]): BinaryVersionedSource
   def increment(reducers: Int = 1)(implicit monoid: Monoid[V], flowDef: FlowDef, mode: Mode): KeyValThing[K,V]
   def pack[K1,K2](implicit codec: Codec[K,(K1,K2)]): KeyValThing[K1,Map[K2,List[V]]]
 }
 
-class KeyVal[K,V](path: String, sourceVersion: Option[Long], sinkVersion: Option[Long]) extends KeyValThing[K,V] {
-  def toSource(implicit kCodec: Codec[K, Array[Byte]], vCodec: Codec[V, Array[Byte]]) = {
-    new BinaryVersionedSource(path, sourceVersion, sinkVersion) with KeyValueCodecTransformer[K,Array[Byte],V,Array[Byte]] {
-      val safeKeyCodec = new MeatLocker(kCodec)
-      val safeValCodec = new MeatLocker(vCodec)
-      override def keyCodec = safeKeyCodec.get
-      override def valCodec = safeValCodec.get
-    }
-  }
+// TODO: Think of this f-bounded composition here! WHY do we duplicate
+// the threading logic for onRead and onWrite in every one of those
+// transformers down below rather than having some way to compose
+// where you just knock out TWO METHODS
 
-  def increment(reducers: Int = 1)(implicit monoid: Monoid[V], flowDef: FlowDef, mode: Mode): KeyValThing[K,V]
-  def pack[K1,K2](implicit codec: Codec[K,(K1,K2)]): KeyValThing[K1,Map[K2,List[V]]]
+class KeyVal[K,V](path: String, sourceVersion: Option[Long], sinkVersion: Option[Long]) extends KeyValThing[K,V] { self =>
+  def toSource(implicit kCodec: Codec[K, Array[Byte]], vCodec: Codec[V, Array[Byte]]) =
+    new BinaryVersionedSource(path, sourceVersion, sinkVersion)
+      with KeyValueCodecTransformer[K,Array[Byte],V,Array[Byte]] {
+        val safeKeyCodec = new MeatLocker(kCodec)
+        val safeValCodec = new MeatLocker(vCodec)
+        override def keyCodec = safeKeyCodec.get
+        override def valCodec = safeValCodec.get
+        override def onRead(pipe: Pipe) = this.onRead(self.onRead(pipe))
+        override def onWrite(pipe: Pipe) = self.onWrite(this.onWrite(pipe))
+      }
+
+  def increment(reducers: Int = 1)(implicit m: Monoid[V], flowDef: FlowDef, mode: Mode) =
+    new KeyVal[K,V](path, sourceVersion, sinkVersion) with IncrementalTransformer[K,V] {
+      override implicit def monoid = m
+      // TODO: KeyVal should accept a supplier function that returns
+      // an Option[Pipe]. By default, return None -- at the last
+      // minute, in the final step, replace this business with the
+      // proper resourceExists shit.
+      def baseSrc: Option[Pipe]
+      def reducers: Int = 1
+      override def onRead(pipe: Pipe) = this.onRead(self.onRead(pipe))
+      override def onWrite(pipe: Pipe) = self.onWrite(this.onWrite(pipe))
+    }
+
+  def pack[K1,K2](implicit codec: Codec[K,(K1,K2)]) =
+    new KeyVal[K1,Map[K2,List[V]]](path, sourceVersion, sinkVersion) with PackTransformer[K,K1,K2,V] {
+      val safeKeyCodec = new MeatLocker(codec)
+      override def innerCodec = safeKeyCodec.get
+      override def onRead(pipe: Pipe) = this.onRead(self.onRead(pipe))
+      override def onWrite(pipe: Pipe) = self.onWrite(this.onWrite(pipe))
+    }
 }
-
-object Thing {
-  def decoded[K,V](implicit kCodec: Codec[K, Array[Byte]], vCodec: Codec[V, Array[Byte]]) =
-    self andThen new KeyValueCodecTransformer[K,Array[Byte],V,Array[Byte]] {
-      val safeKeyCodec = new MeatLocker(kCodec)
-      val safeValCodec = new MeatLocker(vCodec)
-      override def keyCodec = safeKeyCodec.get
-      override def valCodec = safeValCodec.get
-    }
-}
-
-
-/*
-  def incremental[K,V](reducerArgs: Int = 1)(implicit m: Monoid[V], flowDef: FlowDef, mode: Mode) =
-    self andThen new IncrementalTransformer[K, V] {
-      implicit val monoid: Monoid[V] = m
-      def baseSrc: Option[Pipe] = if (resourceExists(mode)) Some(read) else None
-      val reducers: Int = reducerArgs
-    }
-*/
-
-/*
-  def pack[K1, K2](implicit codec: Codec[K, (K1, K2)],
-    kCodec: Codec[K1, Array[Byte]],
-    vCodec: Codec[Map[K2, List[V]], Array[Byte]]) =
-    self
-      .andThen(new PackTransformer[K, K1, K2, V] { override def innerCodec = codec })
-      .andThen(new KeyValueCodecTransformer[K1,Array[Byte],Map[K2,List[V]],Array[Byte]] {
-
-      })
-
-*/
-
 
 // TODO: Move the following traits into Scalding.
 
@@ -120,8 +101,8 @@ object PipeTransformerMonoid extends Monoid[PipeTransformer] {
 }
 
 trait PipeTransformer { self =>
-  def onRead(pipe: Pipe): Pipe
-  def onWrite(pipe: Pipe): Pipe
+  def onRead(pipe: Pipe): Pipe = pipe
+  def onWrite(pipe: Pipe): Pipe = pipe
 
   /**
    * Composes two instances of PipeTransformer into a new PipeTransformer
