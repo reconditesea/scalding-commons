@@ -76,7 +76,7 @@ class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Lon
       }
       case _ => {
         val conf = new JobConf(mode.asInstanceOf[HadoopMode].jobConf)
-        !source.resourceExists(conf)
+        source.resourceExists(conf)
       }
     }
 
