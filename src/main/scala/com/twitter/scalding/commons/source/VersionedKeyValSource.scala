@@ -43,13 +43,15 @@ object VersionedKeyValSource {
 
 class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Long], val sinkVersion: Option[Long])
 (@transient implicit val keyCodec: Codec[K,Array[Byte]],
- @transient valCodec: Codec[V,Array[Byte]]) extends Source {
+ @transient valCodec: Codec[V,Array[Byte]]) extends Source with Mappable[(K,V)] {
   import Dsl._
 
   val keyField = "key"
   val valField = "value"
   val safeKeyCodec = new MeatLocker(keyCodec)
   val safeValCodec = new MeatLocker(valCodec)
+
+  override val converter = implicitly[TupleConverter[(K,V)]]
 
   override def hdfsScheme =
     HadoopSchemeInstance(new KeyValueByteScheme(new Fields(keyField, valField)))
@@ -74,7 +76,7 @@ class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Lon
       }
       case _ => {
         val conf = new JobConf(mode.asInstanceOf[HadoopMode].jobConf)
-        !source.resourceExists(conf)
+        source.resourceExists(conf)
       }
     }
 
