@@ -18,7 +18,7 @@ package com.twitter.scalding.commons.source
 
 import com.twitter.chill.MeatLocker
 import com.twitter.scalding._
-import com.twitter.util.Bijection
+import com.twitter.bijection.Bijection
 
 /**
  * Source used to write some type T into an LZO-compressed SequenceFile using a
@@ -29,7 +29,7 @@ object LzoCodecSource {
   def apply[T](paths: String*)(implicit passedBijection: Bijection[T, Array[Byte]]) =
     new LzoCodec[T] {
       val hdfsPaths = paths
-      val boxed = new MeatLocker(passedBijection)
+      val boxed = MeatLocker(passedBijection)
       override def bijection = boxed.get
     }
 }

@@ -17,6 +17,8 @@ limitations under the License.
 package com.twitter.scalding.commons.source
 
 import com.google.protobuf.Message
+import com.twitter.bijection.Bijection
+import com.twitter.chill.MeatLocker
 import com.twitter.elephantbird.cascading2.scheme._
 import com.twitter.elephantbird.util.{ ThriftUtils, TypeRef }
 import com.twitter.scalding._
@@ -29,19 +31,26 @@ import org.apache.thrift.TBase
 // Retrieve implicits
 import Dsl._
 
+abstract class DailySuffixLzoCodec[T](prefix: String, dateRange: DateRange)
+(implicit @transient suppliedBijection: Bijection[T,Array[Byte]])
+  extends DailySuffixSource(prefix, dateRange) with LzoCodec[T] {
+  val boxed = MeatLocker(suppliedBijection)
+  override lazy val bijection = boxed.get
+}
+
 abstract class DailySuffixLzoProtobuf[T <: Message: Manifest](prefix: String, dateRange: DateRange)
   extends DailySuffixSource(prefix, dateRange) with LzoProtobuf[T] {
-  def column = manifest[T].erasure
+  override def column = manifest[T].erasure
 }
 
 abstract class DailySuffixLzoThrift[T <: TBase[_, _]: Manifest](prefix: String, dateRange: DateRange)
   extends DailySuffixSource(prefix, dateRange) with LzoThrift[T] {
-  def column = manifest[T].erasure
+  override def column = manifest[T].erasure
 }
 
 abstract class DailyPrefixSuffixLzoThrift[T <: TBase[_,_] : Manifest](prefix : String, suffix : String, dateRange : DateRange)
   extends DailyPrefixSuffixSource(prefix, suffix, dateRange) with LzoThrift[T] {
-  def column = manifest[T].erasure
+  override def column = manifest[T].erasure
 }
 
 abstract class TimePathedLongThriftSequenceFile[V <: TBase[_, _]: Manifest](f: Fields, prefix: String, dateFormat: String, dateRange: DateRange)

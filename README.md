@@ -6,7 +6,7 @@ Common extensions to the [Scalding](https://www.github.com/twitter/scalding) Map
 
 Scalding-Commons includes Scalding Sources for use with the [dfs-datastores](https://www.github.com/nathanmarz/dfs-datastores) project.
 
-This library provides a `VersionedKeyValSource` that allows Scalding to write out key-value pairs of any type into a binary sequencefile. Serialization is handled through twitter-util's [Codec](https://github.com/twitter/util/blob/master/util-core/src/main/scala/com/twitter/util/Codec.scala#L60) trait.
+This library provides a `VersionedKeyValSource` that allows Scalding to write out key-value pairs of any type into a binary sequencefile. Serialization is handled with the `bijection-core` library's [Bijection](https://github.com/twitter/bijection/blob/master/bijection-core/src/main/scala/com/twitter/bijection/Bijection.scala) trait.
 
 `VersionedKeyValSource` allows multiple writes to the same path,as write creates a new version. Optionally, given a [Monoid](https://github.com/twitter/algebird/blob/develop/src/main/scala/com/twitter/algebird/BaseAbstractAlgebra.scala#L23) on the value type, `VersionedKeyValSource` allows for versioned incremental updates of a key-value database.
 
@@ -16,10 +16,8 @@ import VersionedKeyValSource._
 
 // ## Sink Example
 
-// These codecs control key and value serialization.
-implicit val keyCodec = new StringCodec
-implicit val keyCodec = new IntCodec
-
+// The bijection library provides implicit Bijections
+// from String -> Array[Byte] and Int -> Array[Byte].
 val versionedSource = VersionedKeyValSource[String,Int]("path")
 
 // creates a new version on each write
@@ -42,7 +40,7 @@ VersionedKeyValSource[String,Int]("path", Some(12345))
 
 ## Maven
 
-Current version is `0.0.7`. `groupid="com.twitter"`,  `artifact=scalding-commons_2.9.2"`.
+Current version is `0.1.0`. `groupid="com.twitter"`,  `artifact=scalding-commons_2.9.2"`.
 
 ## Authors
 
