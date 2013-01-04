@@ -21,8 +21,8 @@ import cascading.scheme.Scheme
 import cascading.scheme.local.{ TextDelimited => CLTextDelimited, TextLine => CLTextLine }
 import cascading.tuple.Fields
 import com.google.protobuf.Message
+import com.twitter.bijection.Bijection
 import com.twitter.elephantbird.cascading2.scheme._
-import com.twitter.util.Bijection
 import com.twitter.scalding._
 import com.twitter.scalding.Dsl._
 import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
