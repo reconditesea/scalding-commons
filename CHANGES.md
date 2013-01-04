@@ -1,5 +1,12 @@
 # scalding-commons #
 
+## 0.1.0
+
+* Added `DailySuffixLzoCodec[T]`
+* Added `HourlySuffixLzoCodec[T]`
+* Dropped `util-core` dependency, added `bijection-core`
+* VersionedKeyValSource now takes Bijections.
+
 ## 0.0.7
 
 * Modify `VersionedKeyValSource` api to match README (change `writeIncrementalSource` to `writeIncremental`, remove old writeIncremental)

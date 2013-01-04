@@ -25,9 +25,9 @@ import cascading.scheme.Scheme
 import cascading.tap.Tap
 import cascading.tuple.Fields
 import com.twitter.algebird.Monoid
+import com.twitter.bijection.Bijection
 import com.twitter.chill.MeatLocker
 import com.twitter.scalding._
-import com.twitter.util.Codec
 import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
 
 /**
@@ -37,25 +37,25 @@ import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
 
 object VersionedKeyValSource {
   def apply[K,V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None)
-  (implicit keyCodec: Codec[K,Array[Byte]], valCodec: Codec[V,Array[Byte]]) =
+  (implicit codec: Bijection[(K,V),(Array[Byte],Array[Byte])]) =
     new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
 }
 
-class VersionedKeyValSource[K,V](path: String, sourceVersion: Option[Long], sinkVersion: Option[Long])
-(@transient implicit val keyCodec: Codec[K,Array[Byte]],
- @transient valCodec: Codec[V,Array[Byte]]) extends Source {
+class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Long], val sinkVersion: Option[Long])
+(implicit @transient codec: Bijection[(K,V),(Array[Byte],Array[Byte])]) extends Source with Mappable[(K,V)] {
   import Dsl._
 
   val keyField = "key"
   val valField = "value"
-  val safeKeyCodec = new MeatLocker(keyCodec)
-  val safeValCodec = new MeatLocker(valCodec)
+  val codecBox = MeatLocker(codec)
+
+  override val converter = implicitly[TupleConverter[(K,V)]]
 
   override def hdfsScheme =
     HadoopSchemeInstance(new KeyValueByteScheme(new Fields(keyField, valField)))
 
   def getTap(mode: TapMode) = {
-    val tap = new VersionedTap(path, keyField, valField, mode)
+    val tap = new VersionedTap(path, hdfsScheme, mode)
     if (mode == TapMode.SOURCE && sourceVersion.isDefined)
       tap.setVersion(sourceVersion.get)
     else if (mode == TapMode.SINK && sinkVersion.isDefined)
@@ -70,11 +70,11 @@ class VersionedKeyValSource[K,V](path: String, sourceVersion: Option[Long], sink
   def resourceExists(mode: Mode) =
     mode match {
       case HadoopTest(conf, buffers) => {
-        !buffers(this).isEmpty
+        buffers.get(this) map { !_.isEmpty } getOrElse false
       }
       case _ => {
         val conf = new JobConf(mode.asInstanceOf[HadoopMode].jobConf)
-        !source.resourceExists(conf)
+        source.resourceExists(conf)
       }
     }
 
@@ -90,16 +90,29 @@ class VersionedKeyValSource[K,V](path: String, sourceVersion: Option[Long], sink
   }
 
   override def transformForRead(pipe: Pipe) = {
-    pipe.map(('key,'value) -> ('key,'value)) { pair: (Array[Byte],Array[Byte]) =>
-      (safeKeyCodec.get.decode(pair._1), safeValCodec.get.decode(pair._2))
+    pipe.map((keyField, valField) -> (keyField, valField)) { pair: (Array[Byte],Array[Byte]) =>
+      codecBox.get.invert(pair)
     }
   }
 
   override def transformForWrite(pipe: Pipe) = {
-    pipe.mapTo((0,1) -> ('key,'value)) { pair: (K,V) =>
-      (safeKeyCodec.get.encode(pair._1), safeValCodec.get.encode(pair._2))
+    pipe.mapTo((0,1) -> (keyField, valField)) { pair: (K,V) =>
+      codecBox.get.apply(pair)
     }
   }
+
+  override def toString =
+    "%s path:%s,sourceVersion:%s,sinkVersion:%s".format(getClass(), path, sourceVersion, sinkVersion)
+
+  override def equals(other: Any) =
+    if (other.isInstanceOf[VersionedKeyValSource[K, V]]) {
+      val otherSrc = other.asInstanceOf[VersionedKeyValSource[K, V]]
+      otherSrc.path == path && otherSrc.sourceVersion == sourceVersion && otherSrc.sinkVersion == sinkVersion
+    } else {
+      false
+    }
+
+  override def hashCode = toString.hashCode
 }
 
 object RichPipeEx extends FieldConversions with TupleConversions with java.io.Serializable {

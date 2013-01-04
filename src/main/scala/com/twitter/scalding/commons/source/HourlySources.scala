@@ -18,12 +18,20 @@ package com.twitter.scalding.commons.source
 
 import cascading.tuple.Fields
 import com.google.protobuf.Message
+import com.twitter.bijection.Bijection
+import com.twitter.chill.MeatLocker
 import com.twitter.scalding._
 import com.twitter.scalding.Dsl._
 import com.twitter.scalding.source._
 import java.io.Serializable
 import org.apache.thrift.TBase
 
+abstract class HourlySuffixLzoCodec[T](prefix: String, dateRange: DateRange)
+(implicit @transient suppliedBijection: Bijection[T,Array[Byte]])
+  extends HourlySuffixSource(prefix, dateRange) with LzoCodec[T] {
+  val boxed = MeatLocker(suppliedBijection)
+  override lazy val bijection = boxed.get
+}
 
 case class HourlySuffixLzoTsv(prefix: String, fs: Fields = Fields.ALL)(override implicit val dateRange: DateRange)
   extends HourlySuffixSource(prefix, dateRange) with LzoTsv {
@@ -32,12 +40,12 @@ case class HourlySuffixLzoTsv(prefix: String, fs: Fields = Fields.ALL)(override 
 
 abstract class HourlySuffixLzoThrift[T <: TBase[_, _]: Manifest](prefix: String, dateRange: DateRange)
   extends HourlySuffixSource(prefix, dateRange) with LzoThrift[T] {
-  def column = manifest[T].erasure
+  override def column = manifest[T].erasure
 }
 
 abstract class HourlySuffixLzoProtobuf[T <: Message: Manifest](prefix: String, dateRange: DateRange)
   extends HourlySuffixSource(prefix, dateRange) with LzoProtobuf[T] {
-  def column = manifest[T].erasure
+  override def column = manifest[T].erasure
 }
 
 abstract class HourlySuffixLzoText(prefix: String, dateRange: DateRange)
