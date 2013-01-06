@@ -28,19 +28,12 @@ import com.twitter.algebird.Monoid
 import com.twitter.bijection.{ Bijection, Pivot }
 import com.twitter.chill.MeatLocker
 import com.twitter.scalding._
-import com.twitter.util.Codec
 import org.apache.hadoop.mapred.JobConf
 
 /**
  * Source used to write key-value pairs as byte arrays into a versioned store.
  * Supports incremental updates via the monoid on V.
  */
-
-trait KeyValProgression[K,V] extends PipeTransformer {
-  def toSource(implicit bij: Bijection[(K,V), (Array[Byte],Array[Byte])]): BinaryVersionedSource
-  def incremental(reducers: Int)(implicit monoid: Monoid[V], flowDef: FlowDef, mode: Mode): VersionedKeyValSource[K,V]
-  def pack[K1,K2](reducers: Int)(implicit pivot: Pivot[(K,V),K1,(K2,V)]): VersionedKeyValSource[K1,Map[K2,Iterable[V]]]
-}
 
 object VersionedKeyValSource {
   val DEFAULT_KEY_FIELD = "key"
