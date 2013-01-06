@@ -20,9 +20,10 @@ import cascading.pipe.Pipe
 import cascading.scheme.Scheme
 import cascading.scheme.hadoop.WritableSequenceFile
 import cascading.tuple.Fields
+import com.twitter.bijection.Bijection
 import com.twitter.chill.MeatLocker
 import com.twitter.scalding._
-import com.twitter.util.{ Bijection, Codec }
+
 import java.util.Arrays
 import org.apache.hadoop.io.BytesWritable
 
@@ -31,23 +32,27 @@ import org.apache.hadoop.io.BytesWritable
  * for serialization.
  */
 
-object BytesWritableCodec extends Codec[Array[Byte], BytesWritable] {
-  override def encode(b: Array[Byte]) = new BytesWritable(b)
-  override def decode(w: BytesWritable) = Arrays.copyOfRange(w.getBytes, 0, w.getLength)
+object BytesWritableCodec {
+  def get =
+    Bijection.build[Array[Byte], BytesWritable] { arr =>
+      new BytesWritable(arr)
+    } { w =>
+      Arrays.copyOfRange(w.getBytes, 0, w.getLength)
+    }
 }
 
 object CodecSource {
   def apply[T](paths: String*)(implicit codec: Bijection[T, Array[Byte]]) = new CodecSource[T](paths)
 }
 
-class CodecSource[T] private (val hdfsPaths: Seq[String])(@transient implicit val codec: Bijection[T, Array[Byte]])
+class CodecSource[T] private (val hdfsPaths: Seq[String])(implicit @transient bijection: Bijection[T, Array[Byte]])
 extends FileSource
 with Mappable[T] {
   import Dsl._
 
   val fieldSym = 'encodedBytes
   lazy val field = new Fields(fieldSym.name)
-  val codecBox = new MeatLocker(codec andThen BytesWritableCodec)
+  val bijectionBox = MeatLocker(bijection andThen BytesWritableCodec.get)
 
   override val converter = Dsl.singleConverter[T]
   override def localPath = sys.error("Local mode not yet supported.")
@@ -55,8 +60,8 @@ with Mappable[T] {
     HadoopSchemeInstance(new WritableSequenceFile(field, classOf[BytesWritable]))
 
   override def transformForRead(pipe: Pipe) =
-    pipe.map((fieldSym) -> (fieldSym)) { codecBox.get.invert(_: BytesWritable) }
+    pipe.map((fieldSym) -> (fieldSym)) { bijectionBox.get.invert(_: BytesWritable) }
 
   override def transformForWrite(pipe: Pipe) =
-    pipe.mapTo((0) -> (fieldSym)) { codecBox.get.apply(_: T) }
+    pipe.mapTo((0) -> (fieldSym)) { bijectionBox.get.apply(_: T) }
 }

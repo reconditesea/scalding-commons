@@ -25,9 +25,9 @@ import cascading.scheme.Scheme
 import cascading.tap.Tap
 import cascading.tuple.Fields
 import com.twitter.algebird.Monoid
+import com.twitter.bijection.Bijection
 import com.twitter.chill.MeatLocker
 import com.twitter.scalding._
-import com.twitter.util.Codec
 import org.apache.hadoop.mapred.JobConf
 
 /**
@@ -37,7 +37,7 @@ import org.apache.hadoop.mapred.JobConf
 
 class BinaryVersionedSource(path: String, sourceVersion: Option[Long], sinkVersion: Option[Long])
 extends VersionedSource(path, sourceVersion, sinkVersion)
-with RenameTransformer { self =>
+with RenameTransformer {
   override val keyField = "key"
   override val valField = "value"
 
@@ -55,73 +55,31 @@ object VersionedKeyValSource {
   // Returns a versioned key-value source that transforms kv-pairs to
   // byte-only sequencefiles and back.
   def apply[K,V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None)
-  (implicit kCodec: Codec[K,Array[Byte]], vCodec: Codec[V,Array[Byte]]) =
-    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion).toSource
-
-  // Returns a VersionedKeyValSource that performs an incremental
-  // update on the previous version (or sourceVersion) before
-  // converting to bytes.
-  def incremental[K,V](path: String,
-                       sourceVersion: Option[Long] = None,
-                       sinkVersion: Option[Long] = None,
-                       reducers: Int = 1)
-  (implicit monoid: Monoid[V],
-   kCodec: Codec[K,Array[Byte]],
-   vCodec: Codec[V,Array[Byte]],
-   flowDef: FlowDef,
-   mode: Mode) =
-     new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
-      .incremental(reducers)
-      .toSource
-
-  // Returns a VersionedKeyValSource that pivots kv-pairs out of the
-  // original K,V type into pairs of K1,Map[K2,List[V]]. Reading
-  // reconstructs the original kv pairs.
-  def packed[K,K1,K2,V](path: String,
-                        sourceVersion: Option[Long] = None,
-                        sinkVersion: Option[Long] = None,
-                        reducers: Int = 1)
-  (implicit codec: Codec[K,(K1,K2)],
-   kCodec: Codec[K1,Array[Byte]],
-   vCodec: Codec[Map[K2,List[V]],Array[Byte]]) =
-     new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
-      .pack(reducers)
-      .toSource
-
-  // Returns a VersionedKeyValSource that performs an incremental
-  // merge before applying packing operations and serialization (on
-  // write).
-  def packedIncremental[K,K1,K2,V](path: String,
-                                   sourceVersion: Option[Long] = None,
-                                   sinkVersion: Option[Long] = None,
-                                   incrementReducers: Int = 1,
-                                   packReducers: Int = 1)
-  (implicit monoid: Monoid[V],
-   codec: Codec[K,(K1,K2)],
-   kCodec: Codec[K1,Array[Byte]],
-   vCodec: Codec[Map[K2,List[V]],Array[Byte]],
-   flowDef: FlowDef,
-   mode: Mode) =
-     new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
-      .incremental(incrementReducers)
-      .pack(packReducers)
-      .toSource
+  (implicit codec: Bijection[(K,V),(Array[Byte],Array[Byte])]) =
+    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
 }
 
-class VersionedKeyValSource[K,V](path: String, sourceVersion: Option[Long], sinkVersion: Option[Long])
-extends BinaryVersionedSource(path, sourceVersion, sinkVersion)
-with KeyValProgression[K,V] { self =>
+class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Long], val sinkVersion: Option[Long])
+(implicit @transient codec: Bijection[(K,V),(Array[Byte],Array[Byte])]) extends Source with Mappable[(K,V)] {
+  import Dsl._
 
-  override def toSource(implicit kCodec: Codec[K, Array[Byte]], vCodec: Codec[V, Array[Byte]]) = {
-    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
-      with KeyValueCodecTransformer[K,Array[Byte],V,Array[Byte]] {
-        val safeKeyCodec = new MeatLocker(kCodec)
-        val safeValCodec = new MeatLocker(vCodec)
-        override def keyCodec = safeKeyCodec.get
-        override def valCodec = safeValCodec.get
-        override def onRead(pipe: Pipe) = this.onRead(self.onRead(pipe))
-        override def onWrite(pipe: Pipe) = self.onWrite(this.onWrite(pipe))
-      }
+  val keyField = "key"
+  val valField = "value"
+  val codecBox = MeatLocker(codec)
+
+  override val converter = implicitly[TupleConverter[(K,V)]]
+
+  override def hdfsScheme =
+    HadoopSchemeInstance(new KeyValueByteScheme(new Fields(keyField, valField)))
+
+  def getTap(mode: TapMode) = {
+    val tap = new VersionedTap(path, hdfsScheme, mode)
+    if (mode == TapMode.SOURCE && sourceVersion.isDefined)
+      tap.setVersion(sourceVersion.get)
+    else if (mode == TapMode.SINK && sinkVersion.isDefined)
+      tap.setVersion(sinkVersion.get)
+    else
+      tap
   }
 
   override def incremental(numReducers: Int = 1)
@@ -135,12 +93,15 @@ with KeyValProgression[K,V] { self =>
       override def baseSrc = if (resourceExists(mode)) Some(read) else None
       override def reducers = numReducers
 
-      // TODO: Think of this f-bounded composition here! WHY do we duplicate
-      // the threading logic for onRead and onWrite in every one of those
-      // transformers down below rather than having some way to compose
-      // where you just knock out TWO METHODS
-      override def onRead(pipe: Pipe) = this.onRead(self.onRead(pipe))
-      override def onWrite(pipe: Pipe) = self.onWrite(this.onWrite(pipe))
+  def resourceExists(mode: Mode) =
+    mode match {
+      case HadoopTest(conf, buffers) => {
+        buffers.get(this) map { !_.isEmpty } getOrElse false
+      }
+      case _ => {
+        val conf = new JobConf(mode.asInstanceOf[HadoopMode].jobConf)
+        source.resourceExists(conf)
+      }
     }
   }
 
@@ -155,44 +116,15 @@ with KeyValProgression[K,V] { self =>
 
 // TODO: Move the following traits into Scalding.
 
-object PipeTransformer {
-  implicit val monoid: Monoid[PipeTransformer] = PipeTransformerMonoid
-}
-
-object PipeTransformerMonoid extends Monoid[PipeTransformer] {
-  override lazy val zero = new PipeTransformer {}
-  override def plus(a: PipeTransformer, b: PipeTransformer) = a andThen b
-}
-
-trait PipeTransformer { self =>
-  def onRead(pipe: Pipe): Pipe = pipe
-  def onWrite(pipe: Pipe): Pipe = pipe
-
-  /**
-   * Composes two instances of PipeTransformer into a new PipeTransformer
-   * with this one applied first on write and last on read.
-   *
-   * onWrite: pipe --> (this transformer) --> (that transformer)
-   * onRead: (this transformer) <-- (that transformer) <-- pipe
-   */
-  def andThen(that: PipeTransformer) = {
-    new PipeTransformer {
-      override def onRead(pipe: Pipe) = self.onRead(that.onRead(pipe))
-      override def onWrite(pipe: Pipe) = that.onWrite(self.onWrite(pipe))
+  override def transformForRead(pipe: Pipe) = {
+    pipe.map((keyField, valField) -> (keyField, valField)) { pair: (Array[Byte],Array[Byte]) =>
+      codecBox.get.invert(pair)
     }
   }
 
-  /**
-   * Composes two instances of PipeTransformer into a new PipeTransformer
-   * with this one applied last on write and first on read.
-   *
-   * onWrite: pipe --> (that transformer) --> (this transformer)
-   * onRead: (that transformer) <-- (this transformer) <-- pipe
-   */
-  def compose(that: PipeTransformer) = {
-    new PipeTransformer {
-      override def onRead(pipe: Pipe) = that.onRead(self.onRead(pipe))
-      override def onWrite(pipe: Pipe) = self.onWrite(that.onWrite(pipe))
+  override def transformForWrite(pipe: Pipe) = {
+    pipe.mapTo((0,1) -> (keyField, valField)) { pair: (K,V) =>
+      codecBox.get.apply(pair)
     }
   }
 }
@@ -270,5 +202,5 @@ trait RenameTransformer extends PipeTransformer {
   def valField: String
 
   override def onRead(pipe: Pipe) = super.onRead(pipe)
-  override def onWrite(pipe: Pipe) = super.onWrite(pipe.rename((0, 1) -> ('key, 'value)))
+  override def onWrite(pipe: Pipe) = super.onWrite(pipe.rename((0, 1) -> (keyField, valField)))
 }
