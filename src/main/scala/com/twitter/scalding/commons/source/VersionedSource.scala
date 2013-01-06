@@ -23,10 +23,13 @@ import cascading.tap.Tap
 import com.twitter.scalding._
 import org.apache.hadoop.mapred.JobConf
 
-class VersionedSource(val path: String, val sourceVersion: Option[Long], val sinkVersion: Option[Long])
+abstract class VersionedSource[T](val path: String, val sourceVersion: Option[Long] = None, val sinkVersion: Option[Long] = None)
   extends Source
+  with Mappable[T]
   with PipeTransformer {
   import Dsl._
+
+  override val converter = implicitly[TupleConverter[T]]
 
   private def getTap(mode: TapMode) = {
     val tap = new VersionedTap(path, hdfsScheme, mode)
@@ -70,8 +73,8 @@ class VersionedSource(val path: String, val sourceVersion: Option[Long], val sin
     "%s path:%s,sourceVersion:%s,sinkVersion:%s".format(getClass(), path, sourceVersion, sinkVersion)
 
   override def equals(other: Any) =
-    if (other.isInstanceOf[VersionedSource]) {
-      val otherSrc = other.asInstanceOf[VersionedSource]
+    if (other.isInstanceOf[VersionedSource[T]]) {
+      val otherSrc = other.asInstanceOf[VersionedSource[T]]
       otherSrc.path == path &&
         otherSrc.sourceVersion == sourceVersion &&
         otherSrc.sinkVersion == sinkVersion
