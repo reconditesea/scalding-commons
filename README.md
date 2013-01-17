@@ -40,13 +40,14 @@ VersionedKeyValSource[String,Int]("path", Some(12345))
 
 ## Maven
 
-Current version is `0.1.0`. `groupid="com.twitter"`,  `artifact=scalding-commons_2.9.2"`.
+Current version is `0.1.1`. `groupid="com.twitter"`,  `artifact=scalding-commons_2.9.2"`.
 
 ## Authors
 
 * Oscar Boykin <http://twitter.com/posco>
 * Mike Jahr <http://twitter.com/mjahr>
 * Sam Ritchie <http://twitter.com/sritchie>
+* Ashu Singhal <http://twitter.com/daashu>
 
 ## License
 

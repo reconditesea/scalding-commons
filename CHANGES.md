@@ -1,5 +1,9 @@
 # scalding-commons #
 
+## 0.1.1
+
+* Added Error handling abilities to `LzoCodec[T]`
+
 ## 0.1.0
 
 * Added `DailySuffixLzoCodec[T]`

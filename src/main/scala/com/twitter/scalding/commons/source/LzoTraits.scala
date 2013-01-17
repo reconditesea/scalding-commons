@@ -15,18 +15,18 @@ limitations under the License.
 */
 
 package com.twitter.scalding.commons.source
-import cascading.pipe.Pipe
 
-import cascading.scheme.Scheme
+import collection.mutable.ListBuffer
+
+import cascading.pipe.Pipe
 import cascading.scheme.local.{ TextDelimited => CLTextDelimited, TextLine => CLTextLine }
-import cascading.tuple.Fields
+
+import org.apache.thrift.TBase
 import com.google.protobuf.Message
 import com.twitter.bijection.Bijection
 import com.twitter.elephantbird.cascading2.scheme._
 import com.twitter.scalding._
 import com.twitter.scalding.Dsl._
-import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
-import org.apache.thrift.TBase
 
 trait LzoCodec[T] extends FileSource with Mappable[T] {
   def bijection: Bijection[T,Array[Byte]]
@@ -38,6 +38,35 @@ trait LzoCodec[T] extends FileSource with Mappable[T] {
 
   override def transformForWrite(pipe: Pipe) =
     pipe.mapTo(0 -> 0) { bijection.apply(_: T) }
+}
+
+trait ErrorHandlingLzoCodec[T] extends LzoCodec[T] {
+  def check(errors: Iterable[Throwable])
+
+  val errors = ListBuffer[Throwable]()
+
+  override def transformForRead(pipe: Pipe) =
+    pipe.flatMap(0 -> 0) { bytes: Array[Byte] =>
+      try {
+        Some(bijection.invert(bytes))
+      } catch {
+        case e =>
+          // TODO: use proper logging
+          e.printStackTrace()
+          errors += e
+          check(errors)
+          None
+      }
+    }
+}
+
+trait ErrorThresholdLzoCodec[T] extends ErrorHandlingLzoCodec[T] {
+  def maxErrors: Int
+  override def check(errors: Iterable[Throwable]) {
+    if (errors.size > maxErrors) {
+      throw new RuntimeException("Error count exceeded the threshold of " + maxErrors)
+    }
+  }
 }
 
 trait LzoProtobuf[T <: Message] extends Mappable[T] {
