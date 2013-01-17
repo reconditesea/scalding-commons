@@ -38,20 +38,24 @@ abstract class DailySuffixLzoCodec[T](prefix: String, dateRange: DateRange)
   override lazy val bijection = boxed.get
 }
 
-abstract class DailySuffixLzoProtobuf[T <: Message: Manifest](prefix: String, dateRange: DateRange)
-  extends DailySuffixSource(prefix, dateRange) with LzoProtobuf[T] {
-  override def column = manifest[T].erasure
+abstract class DailyPrefixSuffixLzoCodec[T](prefix: String, suffix: String, dateRange: DateRange)
+(implicit @transient suppliedBijection: Bijection[T,Array[Byte]])
+  extends DailyPrefixSuffixSource(prefix, suffix, dateRange) with LzoCodec[T] {
+  val boxed = MeatLocker(suppliedBijection)
+  override lazy val bijection = boxed.get
 }
+
+abstract class DailySuffixLzoProtobuf[T <: Message: Manifest](prefix: String, dateRange: DateRange)
+  extends DailySuffixLzoCodec[T](prefix, dateRange)(ProtobufCodec[T])
 
 abstract class DailySuffixLzoThrift[T <: TBase[_, _]: Manifest](prefix: String, dateRange: DateRange)
-  extends DailySuffixSource(prefix, dateRange) with LzoThrift[T] {
-  override def column = manifest[T].erasure
-}
+  extends DailySuffixLzoCodec[T](prefix, dateRange)(BinaryThriftCodec[T])
 
-abstract class DailyPrefixSuffixLzoThrift[T <: TBase[_,_] : Manifest](prefix : String, suffix : String, dateRange : DateRange)
-  extends DailyPrefixSuffixSource(prefix, suffix, dateRange) with LzoThrift[T] {
-  override def column = manifest[T].erasure
-}
+abstract class DailyPrefixSuffixLzoProtobuf[T <: Message: Manifest](prefix: String, suffix: String, dateRange: DateRange)
+  extends DailyPrefixSuffixLzoCodec[T](prefix, suffix, dateRange)(ProtobufCodec[T])
+
+abstract class DailyPrefixSuffixLzoThrift[T <: TBase[_, _]: Manifest](prefix: String, suffix: String, dateRange: DateRange)
+  extends DailyPrefixSuffixLzoCodec[T](prefix, suffix, dateRange)(BinaryThriftCodec[T])
 
 abstract class TimePathedLongThriftSequenceFile[V <: TBase[_, _]: Manifest](f: Fields, prefix: String, dateFormat: String, dateRange: DateRange)
   extends TimePathedSource(prefix + dateFormat + "/*", dateRange, DateOps.UTC)

@@ -21,9 +21,10 @@ import collection.mutable.ListBuffer
 import cascading.pipe.Pipe
 import cascading.scheme.local.{ TextDelimited => CLTextDelimited, TextLine => CLTextLine }
 
-import org.apache.thrift.TBase
-import com.google.protobuf.Message
 import com.twitter.bijection.Bijection
+import com.twitter.bijection.thrift.BinaryThriftCodec
+import com.twitter.bijection.protobuf.ProtobufCodec
+import com.twitter.chill.MeatLocker
 import com.twitter.elephantbird.cascading2.scheme._
 import com.twitter.scalding._
 import com.twitter.scalding.Dsl._
@@ -69,24 +70,8 @@ trait ErrorThresholdLzoCodec[T] extends ErrorHandlingLzoCodec[T] {
   }
 }
 
-trait LzoProtobuf[T <: Message] extends Mappable[T] {
-  def column: Class[_]
-  override def localScheme = { println("This does not work yet"); new CLTextDelimited(sourceFields) }
-  override def hdfsScheme = HadoopSchemeInstance(new LzoProtobufScheme[T](column))
-  override val converter = Dsl.singleConverter[T]
-}
-
-trait LzoThrift[T <: TBase[_, _]] extends Mappable[T] {
-  def column: Class[_]
-  override def localScheme = { println("This does not work yet"); new CLTextDelimited(sourceFields) }
-  override def hdfsScheme = HadoopSchemeInstance(new LzoThriftScheme[T](column))
-  override val converter = Dsl.singleConverter[T]
-}
-
-trait LzoText extends Mappable[String] {
-  override def localScheme = { println("This does not work yet"); new CLTextLine }
-  override def hdfsScheme = HadoopSchemeInstance(new LzoTextLine())
-  override val converter = Dsl.singleConverter[String]
+trait LzoText extends LzoCodec[String] {
+  override val bijection = Bijection.connect[String, Array[Byte]]
 }
 
 trait LzoTsv extends DelimitedScheme {
