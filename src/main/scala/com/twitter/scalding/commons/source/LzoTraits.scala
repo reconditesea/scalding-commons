@@ -41,7 +41,7 @@ trait LzoCodec[T] extends FileSource with Mappable[T] {
 }
 
 trait ErrorHandlingLzoCodec[T] extends LzoCodec[T] {
-  def shouldError(errors: Iterable[Throwable]): Boolean
+  def check(errors: Iterable[Throwable])
 
   val errors = ListBuffer[Throwable]()
 
@@ -54,18 +54,19 @@ trait ErrorHandlingLzoCodec[T] extends LzoCodec[T] {
           // TODO: use proper logging
           e.printStackTrace()
           errors += e
-          if (shouldError(errors)) {
-            throw new RuntimeException("Halted due to deserialization errors")
-          } else {
-            None
-          }
+          check(errors)
+          None
       }
     }
 }
 
 trait ErrorThresholdLzoCodec[T] extends ErrorHandlingLzoCodec[T] {
   def maxErrors: Int
-  override def shouldError(errors: Iterable[Throwable]) = errors.size > maxErrors
+  override def check(errors: Iterable[Throwable]) {
+    if (errors.size > maxErrors) {
+      throw new RuntimeException("Error count exceeded the threshold of " + maxErrors)
+    }
+  }
 }
 
 trait LzoProtobuf[T <: Message] extends Mappable[T] {
