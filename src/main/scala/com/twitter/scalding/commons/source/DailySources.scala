@@ -18,6 +18,8 @@ package com.twitter.scalding.commons.source
 
 import com.google.protobuf.Message
 import com.twitter.bijection.Bijection
+import com.twitter.bijection.protobuf.ProtobufCodec
+import com.twitter.bijection.thrift.BinaryThriftCodec
 import com.twitter.chill.MeatLocker
 import com.twitter.elephantbird.cascading2.scheme._
 import com.twitter.elephantbird.util.{ ThriftUtils, TypeRef }
@@ -32,10 +34,10 @@ import org.apache.thrift.TBase
 import Dsl._
 
 abstract class DailySuffixLzoCodec[T](prefix: String, dateRange: DateRange)
-(implicit @transient suppliedBijection: Bijection[T,Array[Byte]])
+(implicit @transient suppliedBijection: Bijection[T, Array[Byte]])
   extends DailySuffixSource(prefix, dateRange) with LzoCodec[T] {
   val boxed = MeatLocker(suppliedBijection)
-  override lazy val bijection = boxed.get
+  override def bijection = boxed.get
 }
 
 abstract class DailyPrefixSuffixLzoCodec[T](prefix: String, suffix: String, dateRange: DateRange)
@@ -45,15 +47,19 @@ abstract class DailyPrefixSuffixLzoCodec[T](prefix: String, suffix: String, date
   override lazy val bijection = boxed.get
 }
 
+@deprecated("Use DailySuffixLzoCodec[T] with bijection.protobuf.ProtobufCodec[T]", "0.1.2")
 abstract class DailySuffixLzoProtobuf[T <: Message: Manifest](prefix: String, dateRange: DateRange)
   extends DailySuffixLzoCodec[T](prefix, dateRange)(ProtobufCodec[T])
 
+@deprecated("Use DailySuffixLzoCodec[T] with bijection.thrift.BinaryThriftCodec[T]", "0.1.2")
 abstract class DailySuffixLzoThrift[T <: TBase[_, _]: Manifest](prefix: String, dateRange: DateRange)
   extends DailySuffixLzoCodec[T](prefix, dateRange)(BinaryThriftCodec[T])
 
+@deprecated("Use DailyPrefixSuffixLzoCodec[T] with bijection.protobuf.ProtobufCodec[T]", "0.1.2")
 abstract class DailyPrefixSuffixLzoProtobuf[T <: Message: Manifest](prefix: String, suffix: String, dateRange: DateRange)
   extends DailyPrefixSuffixLzoCodec[T](prefix, suffix, dateRange)(ProtobufCodec[T])
 
+@deprecated("Use DailyPrefixSuffixLzoCodec[T] with bijection.thrift.BinaryThriftCodec[T]", "0.1.2")
 abstract class DailyPrefixSuffixLzoThrift[T <: TBase[_, _]: Manifest](prefix: String, suffix: String, dateRange: DateRange)
   extends DailyPrefixSuffixLzoCodec[T](prefix, suffix, dateRange)(BinaryThriftCodec[T])
 

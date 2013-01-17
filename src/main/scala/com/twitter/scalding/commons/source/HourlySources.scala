@@ -19,18 +19,19 @@ package com.twitter.scalding.commons.source
 import cascading.tuple.Fields
 import com.google.protobuf.Message
 import com.twitter.bijection.Bijection
+import com.twitter.bijection.protobuf.ProtobufCodec
+import com.twitter.bijection.thrift.BinaryThriftCodec
 import com.twitter.chill.MeatLocker
 import com.twitter.scalding._
 import com.twitter.scalding.Dsl._
 import com.twitter.scalding.source._
-import java.io.Serializable
 import org.apache.thrift.TBase
 
 abstract class HourlySuffixLzoCodec[T](prefix: String, dateRange: DateRange)
-(implicit @transient suppliedBijection: Bijection[T,Array[Byte]])
+(implicit @transient suppliedBijection: Bijection[T, Array[Byte]])
   extends HourlySuffixSource(prefix, dateRange) with LzoCodec[T] {
   val boxed = MeatLocker(suppliedBijection)
-  override lazy val bijection = boxed.get
+  override def bijection = boxed.get
 }
 
 case class HourlySuffixLzoTsv(prefix: String, fs: Fields = Fields.ALL)(override implicit val dateRange: DateRange)
@@ -38,15 +39,14 @@ case class HourlySuffixLzoTsv(prefix: String, fs: Fields = Fields.ALL)(override 
   override val fields = fs
 }
 
+@deprecated("Use HourlySuffixLzoCodec[T] with bijection.thrift.BinaryThriftCodec[T]", "0.1.2")
 abstract class HourlySuffixLzoThrift[T <: TBase[_, _]: Manifest](prefix: String, dateRange: DateRange)
-  extends HourlySuffixSource(prefix, dateRange) with LzoThrift[T] {
-  override def column = manifest[T].erasure
-}
+  extends HourlySuffixLzoCodec[T](prefix, dateRange)(BinaryThriftCodec[T])
 
+@deprecated("Use HourlySuffixLzoCodec[T] with bijection.protobuf.ProtobufCodec[T]", "0.1.2")
 abstract class HourlySuffixLzoProtobuf[T <: Message: Manifest](prefix: String, dateRange: DateRange)
-  extends HourlySuffixSource(prefix, dateRange) with LzoProtobuf[T] {
-  override def column = manifest[T].erasure
-}
+  extends HourlySuffixLzoCodec[T](prefix, dateRange)(ProtobufCodec[T])
 
+@deprecated("Use HourlySuffixLzoCodec[String]", "0.1.2")
 abstract class HourlySuffixLzoText(prefix: String, dateRange: DateRange)
-  extends HourlySuffixSource(prefix, dateRange) with LzoText
+  extends HourlySuffixLzoCodec[String](prefix, dateRange)

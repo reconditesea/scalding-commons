@@ -19,13 +19,13 @@ package com.twitter.scalding.commons.source
 import collection.mutable.ListBuffer
 
 import cascading.pipe.Pipe
-import cascading.scheme.local.{ TextDelimited => CLTextDelimited, TextLine => CLTextLine }
+import cascading.scheme.local.{ TextDelimited => CLTextDelimited }
 
 import com.twitter.bijection.Bijection
 import com.twitter.bijection.thrift.BinaryThriftCodec
 import com.twitter.bijection.protobuf.ProtobufCodec
 import com.twitter.chill.MeatLocker
-import com.twitter.elephantbird.cascading2.scheme._
+import com.twitter.elephantbird.cascading2.scheme.{ LzoByteArrayScheme, LzoTextDelimited }
 import com.twitter.scalding._
 import com.twitter.scalding.Dsl._
 
@@ -68,10 +68,6 @@ trait ErrorThresholdLzoCodec[T] extends ErrorHandlingLzoCodec[T] {
       throw new RuntimeException("Error count exceeded the threshold of " + maxErrors)
     }
   }
-}
-
-trait LzoText extends LzoCodec[String] {
-  override val bijection = Bijection.connect[String, Array[Byte]]
 }
 
 trait LzoTsv extends DelimitedScheme {

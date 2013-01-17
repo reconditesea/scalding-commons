@@ -16,18 +16,26 @@ limitations under the License.
 
 package com.twitter.scalding.commons.source
 
+import com.twitter.bijection.Bijection
+import com.twitter.bijection.protobuf.ProtobufCodec
+import com.twitter.bijection.thrift.BinaryThriftCodec
+import com.twitter.chill.MeatLocker
 import com.google.protobuf.Message
 import com.twitter.scalding._
 import com.twitter.scalding.Dsl._
-import java.io.Serializable
 import org.apache.thrift.TBase
 
-abstract class FixedPathLzoThrift[T <: TBase[_, _]: Manifest](path: String*)
-  extends FixedPathSource(path: _*) with LzoThrift[T] {
-  def column = manifest[T].erasure
+abstract class FixedPathLzoCodec[T](paths: String*)
+(implicit @transient suppliedBijection: Bijection[T, Array[Byte]])
+  extends FixedPathSource(paths: _*) with LzoCodec[T] {
+  val boxed = MeatLocker(suppliedBijection)
+  override def bijection = boxed.get
 }
 
-abstract class FixedPathLzoProtobuf[T <: Message: Manifest](path: String)
-  extends FixedPathSource(path) with LzoProtobuf[T] {
-  def column = manifest[T].erasure
-}
+@deprecated("Use FixedPathLzoCodec[T] with bijection.thrift.BinaryThriftCodec[T]", "0.1.2")
+abstract class FixedPathLzoThrift[T <: TBase[_, _]: Manifest](paths: String*)
+  extends FixedPathLzoCodec[T](paths: _*)(BinaryThriftCodec[T])
+
+@deprecated("Use FixedPathLzoCodec[T] with bijection.protobuf.ProtobufCodec[T]", "0.1.2")
+abstract class FixedPathLzoProtobuf[T <: Message: Manifest](paths: String*)
+  extends FixedPathLzoCodec[T](paths: _*)(ProtobufCodec[T])
