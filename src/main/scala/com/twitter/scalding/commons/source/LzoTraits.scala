@@ -21,12 +21,15 @@ import collection.mutable.ListBuffer
 import cascading.pipe.Pipe
 import cascading.scheme.local.{ TextDelimited => CLTextDelimited }
 
+import com.google.protobuf.Message
 import com.twitter.bijection.Bijection
 import com.twitter.bijection.thrift.BinaryThriftCodec
 import com.twitter.bijection.protobuf.ProtobufCodec
 import com.twitter.chill.MeatLocker
 import com.twitter.elephantbird.cascading2.scheme.{ LzoByteArrayScheme, LzoTextDelimited }
 import com.twitter.scalding._
+import org.apache.thrift.TBase
+
 import com.twitter.scalding.Dsl._
 
 trait LzoCodec[T] extends FileSource with Mappable[T] {
@@ -69,6 +72,19 @@ trait ErrorThresholdLzoCodec[T] extends ErrorHandlingLzoCodec[T] {
     }
   }
 }
+
+@deprecated("Use LzoCodec[T] with bijection.protobuf.ProtobufCodec[T]", "0.1.2")
+trait LzoProtobuf[T <: Message] extends LzoCodec[T] {
+  def bijection(implicit mf: Manifest[T]) = ProtobufCodec[T]
+}
+
+@deprecated("Use LzoCodec[T] with bijection.thrift.BinaryThriftCodec[T]", "0.1.2")
+trait LzoThrift[T <: TBase[_, _]] extends LzoCodec[T] {
+  def bijection(implicit mf: Manifest[T]) = BinaryThriftCodec[T]
+}
+
+@deprecated("Use LzoCodec[String]", "0.1.2")
+trait LzoText extends LzoCodec[String]
 
 trait LzoTsv extends DelimitedScheme {
   override def localScheme = { println("This does not work yet"); new CLTextDelimited(fields, separator, types) }
