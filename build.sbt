@@ -1,6 +1,6 @@
 name := "scalding-commons"
 
-version := "0.1.2-SNAPSHOT"
+version := "0.1.2"
 
 organization := "com.twitter"
 
@@ -22,15 +22,15 @@ libraryDependencies ++= Seq(
   "backtype" % "dfs-datastores" % "1.2.0",
   "commons-io" % "commons-io" % "2.4",
   "com.google.protobuf" % "protobuf-java" % "2.4.1",
-  "com.twitter" %% "bijection-core" % "0.1.0",
-  "com.twitter" %% "algebird" % "0.1.6",
-  "com.twitter" %% "chill" % "0.1.2",
-  "com.twitter" %% "scalding" % "0.8.2",
+  "com.twitter" %% "bijection-core" % "0.2.1",
+  "com.twitter" %% "algebird-core" % "0.1.8",
+  "com.twitter" %% "chill" % "0.1.4",
+  "com.twitter" %% "scalding" % "0.8.3",
   "com.twitter.elephantbird" % "elephant-bird-cascading2" % "3.0.6",
   "com.hadoop.gplcompression" % "hadoop-lzo" % "0.4.16",
   "org.apache.thrift" % "libthrift" % "0.5.0",
   "org.scalacheck" %% "scalacheck" % "1.10.0" % "test",
-  "org.scala-tools.testing" % "specs_2.9.1" % "1.6.9" % "test"
+  "org.scala-tools.testing" %% "specs" % "1.6.9" % "test"
 )
 
 parallelExecution in Test := true
