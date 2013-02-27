@@ -22,6 +22,7 @@ import backtype.cascading.tap.VersionedTap.TapMode
 import cascading.flow.FlowDef
 import cascading.pipe.Pipe
 import cascading.scheme.Scheme
+import cascading.scheme.local.TextDelimited
 import cascading.tap.Tap
 import cascading.tuple.Fields
 import com.twitter.algebird.Monoid
@@ -47,12 +48,15 @@ class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Lon
 
   val keyField = "key"
   val valField = "value"
+  val fields = new Fields(keyField, valField)
   val codecBox = MeatLocker(codec)
 
   override val converter = implicitly[TupleConverter[(K,V)]]
 
+  override def localScheme = new TextDelimited(fields)
+
   override def hdfsScheme =
-    HadoopSchemeInstance(new KeyValueByteScheme(new Fields(keyField, valField)))
+    HadoopSchemeInstance(new KeyValueByteScheme(fields))
 
   def getTap(mode: TapMode) = {
     val tap = new VersionedTap(path, hdfsScheme, mode)
@@ -69,6 +73,9 @@ class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Lon
 
   def resourceExists(mode: Mode) =
     mode match {
+      case Test(buffers) => {
+        buffers.get(this) map { !_.isEmpty } getOrElse false
+      }
       case HadoopTest(conf, buffers) => {
         buffers.get(this) map { !_.isEmpty } getOrElse false
       }
