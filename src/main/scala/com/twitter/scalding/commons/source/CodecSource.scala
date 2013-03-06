@@ -20,7 +20,7 @@ import cascading.pipe.Pipe
 import cascading.scheme.Scheme
 import cascading.scheme.hadoop.WritableSequenceFile
 import cascading.tuple.Fields
-import com.twitter.bijection.Bijection
+import com.twitter.bijection.{Bijection, Injection}
 import com.twitter.chill.MeatLocker
 import com.twitter.scalding._
 
@@ -42,26 +42,27 @@ object BytesWritableCodec {
 }
 
 object CodecSource {
-  def apply[T](paths: String*)(implicit codec: Bijection[T, Array[Byte]]) = new CodecSource[T](paths)
+  def apply[T](paths: String*)(implicit codec: Injection[T, Array[Byte]]) = new CodecSource[T](paths)
 }
 
-class CodecSource[T] private (val hdfsPaths: Seq[String])(implicit @transient bijection: Bijection[T, Array[Byte]])
+class CodecSource[T] private (val hdfsPaths: Seq[String], val maxFailures: Int = 0)(implicit @transient injection: Injection[T, Array[Byte]])
 extends FileSource
 with Mappable[T] {
   import Dsl._
 
   val fieldSym = 'encodedBytes
   lazy val field = new Fields(fieldSym.name)
-  val bijectionBox = MeatLocker(bijection andThen BytesWritableCodec.get)
+  val injectionBox = MeatLocker(injection andThen BytesWritableCodec.get)
 
   override val converter = Dsl.singleConverter[T]
   override def localPath = sys.error("Local mode not yet supported.")
   override def hdfsScheme =
     HadoopSchemeInstance(new WritableSequenceFile(field, classOf[BytesWritable]))
 
+  protected lazy val checkedInversion = new MaxFailuresCheck[BytesWritable, T](maxFailures)(injectionBox.get)
   override def transformForRead(pipe: Pipe) =
-    pipe.map((fieldSym) -> (fieldSym)) { bijectionBox.get.invert(_: BytesWritable) }
+    pipe.flatMap((fieldSym) -> (fieldSym)) { (bw: BytesWritable) => checkedInversion(bw) }
 
   override def transformForWrite(pipe: Pipe) =
-    pipe.mapTo((0) -> (fieldSym)) { bijectionBox.get.apply(_: T) }
+    pipe.mapTo((0) -> (fieldSym)) { injectionBox.get.apply(_: T) }
 }
