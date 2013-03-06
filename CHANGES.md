@@ -1,5 +1,9 @@
 # scalding-commons #
 
+## 0.1.3
+
+* Convert from Bijection to Injection for serialization.
+
 ## 0.1.1
 
 * Added Error handling abilities to `LzoCodec[T]`
