@@ -85,7 +85,8 @@ extends Source with Mappable[T] {
 
   lazy val getTap = {
     val spec = PailTap.makeSpec(null, structure)
-    val opts = new PailTap.PailTapOptions(spec, fieldName, subPaths map { _.asJava }, null)
+    val javaSubPath = if ((subPaths == null) || (subPaths.size == 0)) null else subPaths map { _.asJava }
+    val opts = new PailTap.PailTapOptions(spec, fieldName, javaSubPath , null)
     new PailTap(rootPath, opts)
   }
 
