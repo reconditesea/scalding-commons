@@ -26,7 +26,7 @@ import cascading.scheme.local.TextDelimited
 import cascading.tap.Tap
 import cascading.tuple.Fields
 import com.twitter.algebird.Monoid
-import com.twitter.bijection.Bijection
+import com.twitter.bijection.Injection
 import com.twitter.chill.MeatLocker
 import com.twitter.scalding._
 import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
@@ -37,13 +37,13 @@ import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
  */
 
 object VersionedKeyValSource {
-  def apply[K,V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None)
-  (implicit codec: Bijection[(K,V),(Array[Byte],Array[Byte])]) =
-    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion)
+  def apply[K,V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None, maxFailures: Int = 0)
+  (implicit codec: Injection[(K,V),(Array[Byte],Array[Byte])]) =
+    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion, maxFailures)
 }
 
-class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Long], val sinkVersion: Option[Long])
-(implicit @transient codec: Bijection[(K,V),(Array[Byte],Array[Byte])]) extends Source with Mappable[(K,V)] {
+class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Long], val sinkVersion: Option[Long],
+    val maxFailures: Int)(implicit @transient codec: Injection[(K,V),(Array[Byte],Array[Byte])]) extends Source with Mappable[(K,V)] {
   import Dsl._
 
   val keyField = "key"
@@ -96,9 +96,12 @@ class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Lon
     }
   }
 
+  // Override this for more control on failure on decode
+  protected lazy val checkedInversion: CheckedInversion[(Array[Byte],Array[Byte]),(K,V)] =
+    new MaxFailuresCheck(maxFailures)(codecBox.get)
   override def transformForRead(pipe: Pipe) = {
-    pipe.map((keyField, valField) -> (keyField, valField)) { pair: (Array[Byte],Array[Byte]) =>
-      codecBox.get.invert(pair)
+    pipe.flatMap((keyField, valField) -> (keyField, valField)) { pair: (Array[Byte],Array[Byte]) =>
+      checkedInversion(pair)
     }
   }
 
@@ -112,7 +115,7 @@ class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Lon
     "%s path:%s,sourceVersion:%s,sinkVersion:%s".format(getClass(), path, sourceVersion, sinkVersion)
 
   override def equals(other: Any) =
-    if (other.isInstanceOf[VersionedKeyValSource[K, V]]) {
+    if (other.isInstanceOf[VersionedKeyValSource[_, _]]) {
       val otherSrc = other.asInstanceOf[VersionedKeyValSource[K, V]]
       otherSrc.path == path && otherSrc.sourceVersion == sourceVersion && otherSrc.sinkVersion == sinkVersion
     } else {

@@ -17,7 +17,7 @@ limitations under the License.
 package com.twitter.scalding.commons.source
 
 import com.google.protobuf.Message
-import com.twitter.bijection.Bijection
+import com.twitter.bijection.Injection
 import com.twitter.chill.MeatLocker
 import com.twitter.elephantbird.cascading2.scheme._
 import com.twitter.elephantbird.util.{ ThriftUtils, TypeRef }
@@ -32,10 +32,10 @@ import org.apache.thrift.TBase
 import Dsl._
 
 abstract class DailySuffixLzoCodec[T](prefix: String, dateRange: DateRange)
-(implicit @transient suppliedBijection: Bijection[T,Array[Byte]])
+(implicit @transient suppliedInjection: Injection[T,Array[Byte]])
   extends DailySuffixSource(prefix, dateRange) with LzoCodec[T] {
-  val boxed = MeatLocker(suppliedBijection)
-  override lazy val bijection = boxed.get
+  val boxed = MeatLocker(suppliedInjection)
+  override lazy val injection = boxed.get
 }
 
 abstract class DailySuffixLzoProtobuf[T <: Message: Manifest](prefix: String, dateRange: DateRange)

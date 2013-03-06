@@ -18,7 +18,7 @@ package com.twitter.scalding.commons.source
 
 import cascading.tuple.Fields
 import com.google.protobuf.Message
-import com.twitter.bijection.Bijection
+import com.twitter.bijection.Injection
 import com.twitter.chill.MeatLocker
 import com.twitter.scalding._
 import com.twitter.scalding.Dsl._
@@ -27,10 +27,10 @@ import java.io.Serializable
 import org.apache.thrift.TBase
 
 abstract class HourlySuffixLzoCodec[T](prefix: String, dateRange: DateRange)
-(implicit @transient suppliedBijection: Bijection[T,Array[Byte]])
+(implicit @transient suppliedInjection: Injection[T,Array[Byte]])
   extends HourlySuffixSource(prefix, dateRange) with LzoCodec[T] {
-  val boxed = MeatLocker(suppliedBijection)
-  override lazy val bijection = boxed.get
+  val boxed = MeatLocker(suppliedInjection)
+  override lazy val injection = boxed.get
 }
 
 case class HourlySuffixLzoTsv(prefix: String, fs: Fields = Fields.ALL)(override implicit val dateRange: DateRange)

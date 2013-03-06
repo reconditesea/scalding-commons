@@ -23,50 +23,64 @@ import cascading.scheme.local.{ TextDelimited => CLTextDelimited, TextLine => CL
 
 import org.apache.thrift.TBase
 import com.google.protobuf.Message
-import com.twitter.bijection.Bijection
+import com.twitter.bijection.Injection
 import com.twitter.elephantbird.cascading2.scheme._
 import com.twitter.scalding._
 import com.twitter.scalding.Dsl._
 
+import java.util.concurrent.atomic.AtomicInteger
+
+/** Handles the error checking for Injection inversion
+ * if check fails, it will throw an unrecoverable exception stopping the job
+ * TODO: probably belongs in Bijection
+ */
+trait CheckedInversion[T,U] extends java.io.Serializable {
+  def injection: Injection[T,U]
+  def apply(input: T): Option[U]
+}
+
 trait LzoCodec[T] extends FileSource with Mappable[T] {
-  def bijection: Bijection[T,Array[Byte]]
+  def injection: Injection[T,Array[Byte]]
   override def localPath = sys.error("Local mode not yet supported.")
   override def hdfsScheme = HadoopSchemeInstance(new LzoByteArrayScheme)
   override val converter = Dsl.singleConverter[T]
   override def transformForRead(pipe: Pipe) =
-    pipe.map(0 -> 0) { bijection.invert(_: Array[Byte]) }
+    pipe.map(0 -> 0) { injection.invert(_: Array[Byte]).get }
 
   override def transformForWrite(pipe: Pipe) =
-    pipe.mapTo(0 -> 0) { bijection.apply(_: T) }
+    pipe.mapTo(0 -> 0) { injection.apply(_: T) }
+}
+
+// TODO: this should actually increment an read a Hadoop counter
+class MaxFailuresCheck[T,U](val maxFailures: Int)(implicit override val injection: Injection[T,U])
+  extends CheckedInversion[T,U] {
+
+  private val failures = new AtomicInteger(0)
+  def apply(input: T): Option[U] = {
+    try {
+      Some(injection.invert(input).get)
+    }
+    catch {
+      case e =>
+        // TODO: use proper logging
+        e.printStackTrace()
+        assert(failures.incrementAndGet <= maxFailures, "maximum decoding errors exceeded")
+        None
+    }
+  }
 }
 
 trait ErrorHandlingLzoCodec[T] extends LzoCodec[T] {
-  def check(errors: Iterable[Throwable])
-
-  val errors = ListBuffer[Throwable]()
+  def checkedInversion: CheckedInversion[Array[Byte],T]
 
   override def transformForRead(pipe: Pipe) =
-    pipe.flatMap(0 -> 0) { bytes: Array[Byte] =>
-      try {
-        Some(bijection.invert(bytes))
-      } catch {
-        case e =>
-          // TODO: use proper logging
-          e.printStackTrace()
-          errors += e
-          check(errors)
-          None
-      }
-    }
+    pipe.flatMap(0 -> 0) { (b: Array[Byte]) => checkedInversion(b) }
 }
 
+// Common case of setting a maximum number of errors
 trait ErrorThresholdLzoCodec[T] extends ErrorHandlingLzoCodec[T] {
   def maxErrors: Int
-  override def check(errors: Iterable[Throwable]) {
-    if (errors.size > maxErrors) {
-      throw new RuntimeException("Error count exceeded the threshold of " + maxErrors)
-    }
-  }
+  lazy val checkedInversion: CheckedInversion[Array[Byte],T] = new MaxFailuresCheck(maxErrors)(injection)
 }
 
 trait LzoProtobuf[T <: Message] extends Mappable[T] {

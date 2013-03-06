@@ -21,7 +21,7 @@ import backtype.hadoop.pail.{Pail, PailStructure}
 import cascading.pipe.Pipe
 import cascading.scheme.Scheme
 import cascading.tap.Tap
-import com.twitter.bijection.Bijection
+import com.twitter.bijection.Injection
 import com.twitter.chill.MeatLocker
 import com.twitter.scalding._
 import java.util.{ List => JList }
@@ -35,7 +35,7 @@ import scala.collection.JavaConverters._
  * each tuple.
  */
 
-// This pail structure pulls in an implicit bijection to handle
+// This pail structure pulls in an implicit injection to handle
 // serialization. targetFn takes an instance of T and returns a list
 // of "path components". Pail joins these components with
 // File.separator and sinks the instance of T into the pail at that
@@ -47,13 +47,13 @@ import scala.collection.JavaConverters._
 // compile time.
 
 class CodecPailStructure[T](targetFn: T => List[String], validator: List[String] => Boolean)
-(implicit @transient bijection: Bijection[T, Array[Byte]], manifest: Manifest[T])
+(implicit @transient injection: Injection[T, Array[Byte]], manifest: Manifest[T])
 extends PailStructure[T] {
-  val codecBox = MeatLocker(bijection)
+  val codecBox = MeatLocker(injection)
   override def isValidTarget(paths: String*): Boolean = validator(paths.toList)
   override def getTarget(obj: T): JList[String] = targetFn(obj).toList.asJava
   override def serialize(obj: T): Array[Byte] = codecBox.get.apply(obj)
-  override def deserialize(bytes: Array[Byte]): T = codecBox.get.invert(bytes)
+  override def deserialize(bytes: Array[Byte]): T = codecBox.get.invert(bytes).get
   override val getType = manifest.erasure.asInstanceOf[Class[T]]
 }
 
@@ -68,11 +68,11 @@ object PailSource {
   // A PailSource can also build its structure on the fly from a
   // couple of functions.
   def apply[T](rootPath: String, targetFn: (T) => List[String], validator: (List[String]) => Boolean)
-  (implicit bijection: Bijection[T, Array[Byte]], manifest: Manifest[T]) =
+  (implicit injection: Injection[T, Array[Byte]], manifest: Manifest[T]) =
     new PailSource(rootPath, new CodecPailStructure[T](targetFn, validator), null)
 
   def apply[T](rootPath: String, targetFn: (T) => List[String], validator: (List[String]) => Boolean, subPaths: Array[List[String]])
-  (implicit bijection: Bijection[T,Array[Byte]], manifest: Manifest[T]) =
+  (implicit injection: Injection[T,Array[Byte]], manifest: Manifest[T]) =
     new PailSource(rootPath, new CodecPailStructure[T](targetFn, validator), subPaths)
 }
 
