@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 trait CheckedInversion[T,U] extends java.io.Serializable {
   def injection: Injection[T,U]
-  def apply(input: T): Option[U]
+  def apply(input: U): Option[T]
 }
 
 trait LzoCodec[T] extends FileSource with Mappable[T] {
@@ -56,7 +56,7 @@ class MaxFailuresCheck[T,U](val maxFailures: Int)(implicit override val injectio
   extends CheckedInversion[T,U] {
 
   private val failures = new AtomicInteger(0)
-  def apply(input: T): Option[U] = {
+  def apply(input: U): Option[T] = {
     try {
       Some(injection.invert(input).get)
     }
@@ -71,7 +71,7 @@ class MaxFailuresCheck[T,U](val maxFailures: Int)(implicit override val injectio
 }
 
 trait ErrorHandlingLzoCodec[T] extends LzoCodec[T] {
-  def checkedInversion: CheckedInversion[Array[Byte],T]
+  def checkedInversion: CheckedInversion[T, Array[Byte]]
 
   override def transformForRead(pipe: Pipe) =
     pipe.flatMap(0 -> 0) { (b: Array[Byte]) => checkedInversion(b) }
@@ -80,7 +80,7 @@ trait ErrorHandlingLzoCodec[T] extends LzoCodec[T] {
 // Common case of setting a maximum number of errors
 trait ErrorThresholdLzoCodec[T] extends ErrorHandlingLzoCodec[T] {
   def maxErrors: Int
-  lazy val checkedInversion: CheckedInversion[Array[Byte],T] = new MaxFailuresCheck(maxErrors)(injection)
+  lazy val checkedInversion: CheckedInversion[T, Array[Byte]] = new MaxFailuresCheck(maxErrors)(injection)
 }
 
 trait LzoProtobuf[T <: Message] extends Mappable[T] {

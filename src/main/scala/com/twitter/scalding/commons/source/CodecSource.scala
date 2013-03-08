@@ -59,7 +59,7 @@ with Mappable[T] {
   override def hdfsScheme =
     HadoopSchemeInstance(new WritableSequenceFile(field, classOf[BytesWritable]))
 
-  protected lazy val checkedInversion = new MaxFailuresCheck[BytesWritable, T](maxFailures)(injectionBox.get)
+  protected lazy val checkedInversion = new MaxFailuresCheck[T, BytesWritable](maxFailures)(injectionBox.get)
   override def transformForRead(pipe: Pipe) =
     pipe.flatMap((fieldSym) -> (fieldSym)) { (bw: BytesWritable) => checkedInversion(bw) }
 
