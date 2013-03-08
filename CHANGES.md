@@ -1,5 +1,9 @@
 # scalding-commons #
 
+## 0.1.4
+
+* Revert compilation errors.
+
 ## 0.1.3
 
 * Convert from Bijection to Injection for serialization.
