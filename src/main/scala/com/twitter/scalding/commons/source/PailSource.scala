@@ -16,8 +16,8 @@ limitations under the License.
 
 package com.twitter.scalding.commons.source
 
-import backtype.cascading.tap.PailTap
-import backtype.hadoop.pail.{Pail, PailStructure}
+import com.backtype.cascading.tap.PailTap
+import com.backtype.hadoop.pail.{Pail, PailStructure}
 import cascading.pipe.Pipe
 import cascading.scheme.Scheme
 import cascading.tap.Tap
@@ -35,48 +35,79 @@ import scala.collection.JavaConverters._
  * each tuple.
  */
 
-// This pail structure pulls in an implicit injection to handle
-// serialization. targetFn takes an instance of T and returns a list
+// targetFn takes an instance of T and returns a list
 // of "path components". Pail joins these components with
-// File.separator and sinks the instance of T into the pail at that
-// location.
+// File.separator and sinks the instance of T into the pail at that location.
 //
 // Usual implementations of "validator" will check that the length of
-// the supplied list is >= the length f the list returned by
-// targetFn. I don't know that there's a good way to do this check at
-// compile time.
+// the supplied list is >= the length f the list returned by targetFn.
+//
+// CodecPailStructure has a default constructor because it is instantiated via reflection
+// This unfortunately means params must be set via setParams to make it useful
+// See the PailSource.apply(..) method for an example of setParams
+// Another detailed example below:
 
-class CodecPailStructure[T](targetFn: T => List[String], validator: List[String] => Boolean)
-(implicit @transient injection: Injection[T, Array[Byte]], manifest: Manifest[T])
-extends PailStructure[T] {
-  val codecBox = MeatLocker(injection)
+/*
+Example Usage: Lets store 100 numbers in a pail!
+Numbers below 50 land in the first tree, above 50 in the second
+Furthermore, we ceate 7 subtrees under each tree, based on (number mod 7)
+This gives us a nice deep directory structure created on the fly
+
+class PailTest(args : Args) extends Job(args) {
+  val pipe = IterableSource((1 to 100), "src").read
+  val func = ((obj:Int) => if( obj < 50) List("./belowfifty" + (obj % 7)) else List("./abovefifty" + (obj % 7)))
+  val validator = ((x:List[String])=>true)
+  val mytype = classOf[Int]
+  val injection = new NumericInjections{}.int2BigEndian
+  val sink = PailSource[Int]( "pailtest", func, validator, mytype, injection)
+  pipe.write(sink)
+}
+*/
+
+class CodecPailStructure[T] extends PailStructure[T] {
+
+  var targetFn: T => List[String] = null
+  var validator :List[String] => Boolean = null
+  var mytype: java.lang.Class[T] = null
+  var injection: Injection[T, Array[Byte]] = null
+
+  def setParams(  targetFn: T => List[String],
+                  validator: List[String] => Boolean,
+                  mytype:java.lang.Class[T],
+                  injection: Injection[T, Array[Byte]]) = {
+
+    this.targetFn = targetFn
+    this.validator = validator
+    this.mytype = mytype
+    this.injection = injection
+  }
   override def isValidTarget(paths: String*): Boolean = validator(paths.toList)
   override def getTarget(obj: T): JList[String] = targetFn(obj).toList.asJava
-  override def serialize(obj: T): Array[Byte] = codecBox.get.apply(obj)
-  override def deserialize(bytes: Array[Byte]): T = codecBox.get.invert(bytes).get
-  override val getType = manifest.erasure.asInstanceOf[Class[T]]
+  override def serialize(obj: T): Array[Byte] = injection.apply(obj)
+  override def deserialize(bytes: Array[Byte]): T = injection.invert(bytes).get
+  override val getType = mytype
 }
 
 object PailSource {
   // Generic version of PailSource accepts a PailStructure.
   def apply[T](rootPath: String, structure: PailStructure[T]) =
-    new PailSource(rootPath, structure, null)
-
-  def apply[T](rootPath: String, structure: PailStructure[T], subPaths: Array[List[String]]) =
-    new PailSource(rootPath, structure, subPaths)
+    new PailSource(rootPath, structure)
 
   // A PailSource can also build its structure on the fly from a
   // couple of functions.
-  def apply[T](rootPath: String, targetFn: (T) => List[String], validator: (List[String]) => Boolean)
-  (implicit injection: Injection[T, Array[Byte]], manifest: Manifest[T]) =
-    new PailSource(rootPath, new CodecPailStructure[T](targetFn, validator), null)
+  def apply[T]( rootPath: String,
+                targetFn: (T) => List[String],
+                validator: (List[String]) => Boolean,
+                mytype:java.lang.Class[T],
+                injection: Injection[T, Array[Byte]]) = {
 
-  def apply[T](rootPath: String, targetFn: (T) => List[String], validator: (List[String]) => Boolean, subPaths: Array[List[String]])
-  (implicit injection: Injection[T,Array[Byte]], manifest: Manifest[T]) =
-    new PailSource(rootPath, new CodecPailStructure[T](targetFn, validator), subPaths)
+    val cps = new CodecPailStructure[T]()
+    cps.setParams( targetFn, validator, mytype, injection)
+    new PailSource(rootPath, cps)
+  }
 }
 
-class PailSource[T] private (rootPath: String, structure: PailStructure[T], subPaths: Array[List[String]] = null)
+class PailSource[T] private (rootPath: String, structure: PailStructure[T])
 extends Source with Mappable[T] {
   import Dsl._
 
@@ -85,8 +116,7 @@ extends Source with Mappable[T] {
 
   lazy val getTap = {
     val spec = PailTap.makeSpec(null, structure)
-    val javaSubPath = if ((subPaths == null) || (subPaths.size == 0)) null else subPaths map { _.asJava }
-    val opts = new PailTap.PailTapOptions(spec, fieldName, javaSubPath , null)
+    val opts = new PailTap.PailTapOptions(spec, fieldName, null , null)
     new PailTap(rootPath, opts)
   }
 
@@ -106,9 +136,5 @@ extends Source with Mappable[T] {
     }
   }
 
-  // Create pail at rootPath if it doesn't exist, no-op otherwise.
-  override def transformForWrite(pipe: Pipe) = {
-    Pail.create(rootPath, structure, false)
-    pipe.rename((0) -> 'pailItem)
-  }
+  override def transformForWrite(pipe: Pipe) = pipe
 }
