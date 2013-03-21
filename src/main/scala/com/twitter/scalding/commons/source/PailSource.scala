@@ -43,26 +43,8 @@ import scala.collection.JavaConverters._
 // the supplied list is >= the length f the list returned by targetFn.
 //
 // CodecPailStructure has a default constructor because it is instantiated via reflection
-// This unfortunately means params must be set via setParams to make it useful
-// See the PailSource.apply(..) method for an example of setParams
-// Another detailed example below:
-
-/*
-Example Usage: Lets store 100 numbers in a pail!
-Numbers below 50 land in the first tree, above 50 in the second
-Furthermore, we ceate 7 subtrees under each tree, based on (number mod 7)
-This gives us a nice deep directory structure created on the fly
-
-class PailTest(args : Args) extends Job(args) {
-  val pipe = IterableSource((1 to 100), "src").read
-  val func = ((obj:Int) => if( obj < 50) List("./belowfifty" + (obj % 7)) else List("./abovefifty" + (obj % 7)))
-  val validator = ((x:List[String])=>true)
-  val mytype = classOf[Int]
-  val injection = new NumericInjections{}.int2BigEndian
-  val sink = PailSource[Int]( "pailtest", func, validator, mytype, injection)
-  pipe.write(sink)
-}
-*/
+// This unfortunately means params must be set via setParams to make it usefuls
+// Example Usage: https://gist.github.com/krishnanraman/5209602
 
 class CodecPailStructure[T] extends PailStructure[T] {
 
@@ -105,6 +87,17 @@ object PailSource {
     cps.setParams( targetFn, validator, mytype, injection)
     new PailSource(rootPath, cps)
   }
+
+  // Alternate sink construction
+  // Using implicit injections & classmanifest for the type
+  def sink[T]( rootPath: String,
+               targetFn: (T) => List[String],
+               validator: (List[String]) => Boolean)(implicit cmf: ClassManifest[T],
+               injection: Injection[T, Array[Byte]]) = {
+    val cps = new CodecPailStructure[T]()
+    cps.setParams( targetFn, validator, cmf.erasure.asInstanceOf[Class[T]], injection)
+    new PailSource(rootPath, cps)
+ }
 
   def source[T](rootPath: String, structure: PailStructure[T], subPaths: Array[List[String]]) = {
     assert( subPaths != null && subPaths.size > 0)
