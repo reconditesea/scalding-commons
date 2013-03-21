@@ -90,12 +90,12 @@ class CodecPailStructure[T] extends PailStructure[T] {
 
 object PailSource {
   // Generic version of PailSource accepts a PailStructure.
-  def apply[T](rootPath: String, structure: PailStructure[T]) =
+  def sink[T](rootPath: String, structure: PailStructure[T]) =
     new PailSource(rootPath, structure)
 
   // A PailSource can also build its structure on the fly from a
   // couple of functions.
-  def apply[T]( rootPath: String,
+  def sink[T]( rootPath: String,
                 targetFn: (T) => List[String],
                 validator: (List[String]) => Boolean,
                 mytype:java.lang.Class[T],
@@ -105,9 +105,14 @@ object PailSource {
     cps.setParams( targetFn, validator, mytype, injection)
     new PailSource(rootPath, cps)
   }
+
+  def source[T](rootPath: String, structure: PailStructure[T], subPaths: Array[List[String]]) = {
+    assert( subPaths != null && subPaths.size > 0)
+    new PailSource(rootPath, structure, subPaths)
+  }
 }
 
-class PailSource[T] private (rootPath: String, structure: PailStructure[T])
+class PailSource[T] private (rootPath: String, structure: PailStructure[T], subPaths: Array[List[String]] = null)
 extends Source with Mappable[T] {
   import Dsl._
 
@@ -116,7 +121,8 @@ extends Source with Mappable[T] {
 
   lazy val getTap = {
     val spec = PailTap.makeSpec(null, structure)
-    val opts = new PailTap.PailTapOptions(spec, fieldName, null , null)
+    val javaSubPath = if ((subPaths == null) || (subPaths.size == 0)) null else subPaths map { _.asJava }
+    val opts = new PailTap.PailTapOptions(spec, fieldName, javaSubPath , null)
     new PailTap(rootPath, opts)
   }
 
