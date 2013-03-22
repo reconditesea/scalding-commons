@@ -39,11 +39,14 @@ import scala.collection.JavaConverters._
 
 object PailSource {
 
-  // the simplest version of sink - THE MOST COMMON USE CASE
-  // specify exactly 2 parameters
-  // rootPath - the location ie. Where do you want your Pail to reside ?
-  // targetFn - the partition function ie. How do we create Pail subdirectories out of your input space ?
-  // SEE EXAMPLE : https://gist.github.com/krishnanraman/5224937
+ /**
+  * the simplest version of sink - THE MOST COMMON USE CASE
+  * specify exactly 2 parameters
+  * rootPath - the location ie. Where do you want your Pail to reside ?
+  * targetFn - the partition function ie. How do we create Pail subdirectories out of your input space ?
+  *
+  * SEE EXAMPLE : https://gist.github.com/krishnanraman/5224937
+  */
   def sink[T]( rootPath: String,
                targetFn: (T) => List[String] )
               (implicit cmf: ClassManifest[T],
@@ -55,11 +58,18 @@ object PailSource {
     sink(rootPath, cps)
  }
 
-  // the simplest version of source - THE MOST COMMON USE CASE
-  // specify exactly 2 parameters
-  // rootPath - the location ie. Where does your Pail reside - its root directory ?
-  // subPath - the location ie. Where does your Pail reside - its subdirectories ?
-  // SEE EXAMPLE : https://gist.github.com/krishnanraman/5224937
+ /**
+  * the simplest version of source - THE MOST COMMON USE CASE
+  * specify exactly 2 parameters
+  * rootPath - the location ie. Where does your Pail reside - its root directory ?
+  * subPath - the location ie. Where does your Pail reside - its subdirectories ?
+  * eg. Say your data resides in foo/bar, foo/obj, foo/ghj
+  * If you care about obj & ghj, the rootPath = "foo", subPaths = Array(List("obj"), List("ghj"))
+  * Notice that subPaths != Array(List("obj", "ghj")) - this would fail.
+  * Every subdirectory goes in its own list.
+  *
+  * SEE EXAMPLE : https://gist.github.com/krishnanraman/5224937
+  */
   def source[T](rootPath: String,
                 subPaths: Array[List[String]])
               (implicit cmf: ClassManifest[T],
@@ -71,12 +81,14 @@ object PailSource {
     source( rootPath, cps, subPaths)
   }
 
-  // Generic version of PailSource accepts a PailStructure.
-  def sink[T](rootPath: String, structure: PailStructure[T]) =
+  /** Generic version of Pail sink accepts a PailStructure.
+  */
+  def sink[T](rootPath: String, structure: PailStructure[T]):PailSource[T] =
     new PailSource(rootPath, structure)
 
-  // A PailSource can also build its structure on the fly from a
-  // couple of functions.
+  /** A Pail sink can also build its structure on the fly from a
+  *   couple of functions.
+  */
   def sink[T]( rootPath: String,
                 targetFn: (T) => List[String],
                 validator: (List[String]) => Boolean,
@@ -88,8 +100,9 @@ object PailSource {
     sink( rootPath, cps)
   }
 
-  // Alternate sink construction
-  // Using implicit injections & classmanifest for the type
+  /** Alternate sink construction
+  *   Using implicit injections & classmanifest for the type
+  */
   def sink[T]( rootPath: String,
                targetFn: (T) => List[String],
                validator: (List[String]) => Boolean)
@@ -100,11 +113,15 @@ object PailSource {
     sink(rootPath, cps)
  }
 
-  def source[T](rootPath: String, structure: PailStructure[T], subPaths: Array[List[String]]) = {
+  /** Generic version of Pail source accepts a PailStructure.
+  */
+  def source[T](rootPath: String, structure: PailStructure[T], subPaths: Array[List[String]]):PailSource[T] = {
     assert( subPaths != null && subPaths.size > 0)
     new PailSource(rootPath, structure, subPaths)
   }
 
+  /** The most explicit method to construct a Pail source - specify all 5 params
+  */
   def source[T](rootPath: String,
                 validator: (List[String]) => Boolean,
                 mytype:java.lang.Class[T],
@@ -115,7 +132,8 @@ object PailSource {
     source( rootPath, cps, subPaths)
   }
 
-
+  /** Alternate Pail source construction - specify 3 params, rest implicit
+  */
   def source[T](rootPath: String,
                 validator: (List[String]) => Boolean,
                 subPaths: Array[List[String]])
@@ -157,18 +175,22 @@ extends Source with Mappable[T] {
     }
   }
 
-  override def transformForWrite(pipe: Pipe) = pipe
 }
 
-// targetFn takes an instance of T and returns a list
-// of "path components". Pail joins these components with
-// File.separator and sinks the instance of T into the pail at that location.
-//
-// Usual implementations of "validator" will check that the length of
-// the supplied list is >= the length f the list returned by targetFn.
-//
-// CodecPailStructure has a default constructor because it is instantiated via reflection
-// This unfortunately means params must be set via setParams to make it usefuls
+/**
+  * It is quite unlikely for client code to make a CodecPailStructure
+  * CodecPailStructure is constructed by PailSource's factory methods.
+  *
+  * targetFn takes an instance of T and returns a list
+  *"path components". Pail joins these components with
+  * File.separator and sinks the instance of T into the pail at that location.
+  *
+  * Usual implementations of "validator" will check that the length of
+  * the supplied list is >= the length f the list returned by targetFn.
+  *
+  * CodecPailStructure has a default constructor because it is instantiated via reflection
+  * This unfortunately means params must be set via setParams to make it usefuls
+*/
 
 class CodecPailStructure[T] extends PailStructure[T] {
 
