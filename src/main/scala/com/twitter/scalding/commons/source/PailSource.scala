@@ -33,44 +33,44 @@ import scala.collection.JavaConverters._
  * dfs-datastores library. PailSource allows scalding to sink 1-tuples
  * to subdirectories of a root folder by applying a routing function to
  * each tuple.
+ *
+ * SEE EXAMPLE : https://gist.github.com/krishnanraman/5224937
  */
 
-// targetFn takes an instance of T and returns a list
-// of "path components". Pail joins these components with
-// File.separator and sinks the instance of T into the pail at that location.
-//
-// Usual implementations of "validator" will check that the length of
-// the supplied list is >= the length f the list returned by targetFn.
-//
-// CodecPailStructure has a default constructor because it is instantiated via reflection
-// This unfortunately means params must be set via setParams to make it usefuls
-// Example Usage: https://gist.github.com/krishnanraman/5209602
-
-class CodecPailStructure[T] extends PailStructure[T] {
-
-  var targetFn: T => List[String] = null
-  var validator :List[String] => Boolean = null
-  var mytype: java.lang.Class[T] = null
-  var injection: Injection[T, Array[Byte]] = null
-
-  def setParams(  targetFn: T => List[String],
-                  validator: List[String] => Boolean,
-                  mytype:java.lang.Class[T],
-                  injection: Injection[T, Array[Byte]]) = {
-
-    this.targetFn = targetFn
-    this.validator = validator
-    this.mytype = mytype
-    this.injection = injection
-  }
-  override def isValidTarget(paths: String*): Boolean = validator(paths.toList)
-  override def getTarget(obj: T): JList[String] = targetFn(obj).toList.asJava
-  override def serialize(obj: T): Array[Byte] = injection.apply(obj)
-  override def deserialize(bytes: Array[Byte]): T = injection.invert(bytes).get
-  override val getType = mytype
-}
-
 object PailSource {
+
+  // the simplest version of sink - THE MOST COMMON USE CASE
+  // specify exactly 2 parameters
+  // rootPath - the location ie. Where do you want your Pail to reside ?
+  // targetFn - the partition function ie. How do we create Pail subdirectories out of your input space ?
+  // SEE EXAMPLE : https://gist.github.com/krishnanraman/5224937
+  def sink[T]( rootPath: String,
+               targetFn: (T) => List[String] )
+              (implicit cmf: ClassManifest[T],
+               injection: Injection[T, Array[Byte]]):PailSource[T] = {
+
+    val validator = ((x:List[String])=> true)
+    val cps = new CodecPailStructure[T]()
+    cps.setParams( targetFn, validator, cmf.erasure.asInstanceOf[Class[T]], injection)
+    sink(rootPath, cps)
+ }
+
+  // the simplest version of source - THE MOST COMMON USE CASE
+  // specify exactly 2 parameters
+  // rootPath - the location ie. Where does your Pail reside - its root directory ?
+  // subPath - the location ie. Where does your Pail reside - its subdirectories ?
+  // SEE EXAMPLE : https://gist.github.com/krishnanraman/5224937
+  def source[T](rootPath: String,
+                subPaths: Array[List[String]])
+              (implicit cmf: ClassManifest[T],
+               injection: Injection[T, Array[Byte]]):PailSource[T] = {
+
+    val validator = ((x:List[String])=> true)
+    val cps = new CodecPailStructure[T]()
+    cps.setParams( null, validator, cmf.erasure.asInstanceOf[Class[T]], injection)
+    source( rootPath, cps, subPaths)
+  }
+
   // Generic version of PailSource accepts a PailStructure.
   def sink[T](rootPath: String, structure: PailStructure[T]) =
     new PailSource(rootPath, structure)
@@ -81,27 +81,49 @@ object PailSource {
                 targetFn: (T) => List[String],
                 validator: (List[String]) => Boolean,
                 mytype:java.lang.Class[T],
-                injection: Injection[T, Array[Byte]]) = {
+                injection: Injection[T, Array[Byte]]):PailSource[T] = {
 
     val cps = new CodecPailStructure[T]()
     cps.setParams( targetFn, validator, mytype, injection)
-    new PailSource(rootPath, cps)
+    sink( rootPath, cps)
   }
 
   // Alternate sink construction
   // Using implicit injections & classmanifest for the type
   def sink[T]( rootPath: String,
                targetFn: (T) => List[String],
-               validator: (List[String]) => Boolean)(implicit cmf: ClassManifest[T],
-               injection: Injection[T, Array[Byte]]) = {
+               validator: (List[String]) => Boolean)
+              (implicit cmf: ClassManifest[T],
+               injection: Injection[T, Array[Byte]]):PailSource[T] = {
     val cps = new CodecPailStructure[T]()
     cps.setParams( targetFn, validator, cmf.erasure.asInstanceOf[Class[T]], injection)
-    new PailSource(rootPath, cps)
+    sink(rootPath, cps)
  }
 
   def source[T](rootPath: String, structure: PailStructure[T], subPaths: Array[List[String]]) = {
     assert( subPaths != null && subPaths.size > 0)
     new PailSource(rootPath, structure, subPaths)
+  }
+
+  def source[T](rootPath: String,
+                validator: (List[String]) => Boolean,
+                mytype:java.lang.Class[T],
+                injection: Injection[T, Array[Byte]] ,
+                subPaths: Array[List[String]]):PailSource[T] = {
+    val cps = new CodecPailStructure[T]()
+    cps.setParams( null, validator, mytype, injection)
+    source( rootPath, cps, subPaths)
+  }
+
+
+  def source[T](rootPath: String,
+                validator: (List[String]) => Boolean,
+                subPaths: Array[List[String]])
+              (implicit cmf: ClassManifest[T],
+                injection: Injection[T, Array[Byte]]):PailSource[T] = {
+    val cps = new CodecPailStructure[T]()
+    cps.setParams( null, validator, cmf.erasure.asInstanceOf[Class[T]], injection)
+    source( rootPath, cps, subPaths)
   }
 }
 
@@ -137,3 +159,38 @@ extends Source with Mappable[T] {
 
   override def transformForWrite(pipe: Pipe) = pipe
 }
+
+// targetFn takes an instance of T and returns a list
+// of "path components". Pail joins these components with
+// File.separator and sinks the instance of T into the pail at that location.
+//
+// Usual implementations of "validator" will check that the length of
+// the supplied list is >= the length f the list returned by targetFn.
+//
+// CodecPailStructure has a default constructor because it is instantiated via reflection
+// This unfortunately means params must be set via setParams to make it usefuls
+
+class CodecPailStructure[T] extends PailStructure[T] {
+
+  private var targetFn: T => List[String] = null
+  private var validator :List[String] => Boolean = ((x:List[String])=> true)
+  private var mytype: java.lang.Class[T] = null
+  private var injection: Injection[T, Array[Byte]] = null
+
+  private[source] def setParams(  targetFn: T => List[String],
+                  validator: List[String] => Boolean,
+                  mytype:java.lang.Class[T],
+                  injection: Injection[T, Array[Byte]]) = {
+
+    this.targetFn = targetFn
+    this.validator = validator
+    this.mytype = mytype
+    this.injection = injection
+  }
+  override def isValidTarget(paths: String*): Boolean = validator(paths.toList)
+  override def getTarget(obj: T): JList[String] = targetFn(obj).toList.asJava
+  override def serialize(obj: T): Array[Byte] = injection.apply(obj)
+  override def deserialize(bytes: Array[Byte]): T = injection.invert(bytes).get
+  override val getType = mytype
+}
+
