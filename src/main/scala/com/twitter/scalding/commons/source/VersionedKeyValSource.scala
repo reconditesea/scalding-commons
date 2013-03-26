@@ -16,9 +16,9 @@ limitations under the License.
 
 package com.twitter.scalding.commons.source
 
-import backtype.cascading.scheme.KeyValueByteScheme
-import backtype.cascading.tap.VersionedTap
-import backtype.cascading.tap.VersionedTap.TapMode
+import com.backtype.cascading.scheme.KeyValueByteScheme
+import com.backtype.cascading.tap.VersionedTap
+import com.backtype.cascading.tap.VersionedTap.TapMode
 import cascading.flow.FlowDef
 import cascading.pipe.Pipe
 import cascading.scheme.Scheme
