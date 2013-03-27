@@ -16,8 +16,8 @@ limitations under the License.
 
 package com.twitter.scalding.commons.source
 
-import backtype.cascading.tap.PailTap
-import backtype.hadoop.pail.{Pail, PailStructure}
+import com.backtype.cascading.tap.PailTap
+import com.backtype.hadoop.pail.{Pail, PailStructure}
 import cascading.pipe.Pipe
 import cascading.scheme.Scheme
 import cascading.tap.Tap

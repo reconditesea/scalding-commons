@@ -18,8 +18,8 @@ resolvers ++= Seq(
 scalacOptions ++= Seq("-unchecked")
 
 libraryDependencies ++= Seq(
-  "backtype" % "dfs-datastores-cascading" % "1.3.0",
-  "backtype" % "dfs-datastores" % "1.2.0",
+  "com.backtype" % "dfs-datastores-cascading" % "1.3.1",
+  "com.backtype" % "dfs-datastores" % "1.3.1",
   "commons-io" % "commons-io" % "2.4",
   "com.google.protobuf" % "protobuf-java" % "2.4.1",
   "com.twitter" %% "bijection-core" % "0.3.0",
