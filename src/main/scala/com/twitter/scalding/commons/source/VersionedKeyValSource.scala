@@ -160,7 +160,7 @@ class TypedRichPipeEx[K: Ordering, V: Monoid](pipe: TypedPipe[(K,V)]) extends ja
           .sum
       }
 
-    outPipe.write((0,1), src)
+    outPipe.toPipe((0,1)).write(src)
   }
 }
 
