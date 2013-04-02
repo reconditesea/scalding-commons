@@ -1,6 +1,6 @@
 name := "scalding-commons"
 
-version := "0.1.4"
+version := "0.1.5"
 
 organization := "com.twitter"
 
@@ -23,9 +23,9 @@ libraryDependencies ++= Seq(
   "commons-io" % "commons-io" % "2.4",
   "com.google.protobuf" % "protobuf-java" % "2.4.1",
   "com.twitter" %% "bijection-core" % "0.3.0",
-  "com.twitter" %% "algebird-core" % "0.1.9",
-  "com.twitter" %% "chill" % "0.1.4",
-  "com.twitter" %% "scalding" % "0.8.3",
+  "com.twitter" %% "algebird-core" % "0.1.11",
+  "com.twitter" %% "chill" % "0.2.0",
+  "com.twitter" %% "scalding-core" % "0.8.4",
   "com.twitter.elephantbird" % "elephant-bird-cascading2" % "3.0.6",
   "com.hadoop.gplcompression" % "hadoop-lzo" % "0.4.16",
   "org.apache.thrift" % "libthrift" % "0.5.0",

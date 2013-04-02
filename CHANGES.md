@@ -1,5 +1,10 @@
 # scalding-commons #
 
+## 0.1.5
+
+* Fix Scalding's pail implementation (thanks to Krishnan Raman!)
+* Bump dependency versions
+
 ## 0.1.4
 
 * Revert compilation errors.
