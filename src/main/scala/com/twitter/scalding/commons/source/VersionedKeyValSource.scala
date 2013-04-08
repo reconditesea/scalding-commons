@@ -37,13 +37,15 @@ import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
  */
 
 object VersionedKeyValSource {
-  def apply[K,V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None, maxFailures: Int = 0)
+
+  def apply[K,V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None, maxFailures: Int = 0, versionsToKeep: Int = 3)
   (implicit codec: Injection[(K,V),(Array[Byte],Array[Byte])]) =
-    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion, maxFailures)
+    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion, maxFailures, versionsToKeep)
 }
 
 class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Long], val sinkVersion: Option[Long],
-    val maxFailures: Int)(implicit @transient codec: Injection[(K,V),(Array[Byte],Array[Byte])]) extends Source with Mappable[(K,V)] {
+    val maxFailures: Int, val versionsToKeep: Int)(implicit @transient codec: Injection[(K,V),(Array[Byte],Array[Byte])]) extends Source with Mappable[(K,V)] {
+
   import Dsl._
 
   val keyField = "key"
@@ -59,7 +61,7 @@ class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Lon
     HadoopSchemeInstance(new KeyValueByteScheme(fields))
 
   def getTap(mode: TapMode) = {
-    val tap = new VersionedTap(path, hdfsScheme, mode)
+    val tap = new VersionedTap(path, hdfsScheme, mode).setVersionsToKeep(versionsToKeep)
     if (mode == TapMode.SOURCE && sourceVersion.isDefined)
       tap.setVersion(sourceVersion.get)
     else if (mode == TapMode.SINK && sinkVersion.isDefined)
