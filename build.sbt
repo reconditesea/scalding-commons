@@ -1,3 +1,10 @@
+import com.typesafe.tools.mima.plugin.MimaPlugin.mimaDefaultSettings
+import com.typesafe.tools.mima.plugin.MimaKeys.previousArtifact
+
+mimaDefaultSettings
+
+previousArtifact := Some("com.twitter" % "scalding-commons_2.9.2" % "0.1.5")
+
 name := "scalding-commons"
 
 version := "0.1.5"

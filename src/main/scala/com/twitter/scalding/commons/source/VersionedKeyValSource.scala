@@ -37,8 +37,15 @@ import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
  */
 
 object VersionedKeyValSource {
+  val defaultVersionsToKeep = 3
 
-  def apply[K,V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None, maxFailures: Int = 0, versionsToKeep: Int = 3)
+  // TODO: have two apply methods here for binary compatibility purpose. Need to clean it up in next release.
+  def apply[K,V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None, maxFailures: Int = 0)
+  (implicit codec: Injection[(K,V),(Array[Byte],Array[Byte])]) = {
+    new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion, maxFailures, defaultVersionsToKeep)
+  }
+
+  def apply[K,V](path: String, sourceVersion: Option[Long], sinkVersion: Option[Long], maxFailures: Int, versionsToKeep: Int)
   (implicit codec: Injection[(K,V),(Array[Byte],Array[Byte])]) =
     new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion, maxFailures, versionsToKeep)
 }
@@ -59,6 +66,11 @@ class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Lon
 
   override def hdfsScheme =
     HadoopSchemeInstance(new KeyValueByteScheme(fields))
+
+  @deprecated("This method is deprecated", "0.1.6")
+  def this(path: String, sourceVersion: Option[Long], sinkVersion: Option[Long], maxFailures: Int)
+    (implicit @transient codec: Injection[(K,V),(Array[Byte],Array[Byte])]) = 
+      this(path, sourceVersion, sinkVersion, maxFailures, VersionedKeyValSource.defaultVersionsToKeep)(codec)
 
   def getTap(mode: TapMode) = {
     val tap = new VersionedTap(path, hdfsScheme, mode).setVersionsToKeep(versionsToKeep)
