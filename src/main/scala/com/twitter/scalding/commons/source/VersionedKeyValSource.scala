@@ -67,12 +67,10 @@ class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Lon
   override def hdfsScheme =
     HadoopSchemeInstance(new KeyValueByteScheme(fields))
 
-  //TODO: release in the next version
   @deprecated("This method is deprecated", "0.1.6")
   def this(path: String, sourceVersion: Option[Long], sinkVersion: Option[Long], maxFailures: Int)
     (implicit @transient codec: Injection[(K,V),(Array[Byte],Array[Byte])]) = 
       this(path, sourceVersion, sinkVersion, maxFailures, VersionedKeyValSource.defaultVersionsToKeep)(codec)
-  
 
   def getTap(mode: TapMode) = {
     val tap = new VersionedTap(path, hdfsScheme, mode).setVersionsToKeep(versionsToKeep)
