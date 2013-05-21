@@ -39,7 +39,7 @@ import org.apache.hadoop.mapred.{ JobConf, OutputCollector, RecordReader }
 object VersionedKeyValSource {
   val defaultVersionsToKeep = 3
 
-  // TODO: have two apply methods here for binary compatibility purpose. Need to clean it up in next release
+  // TODO: have two apply methods here for binary compatibility purpose. Need to clean it up in next release.
   def apply[K,V](path: String, sourceVersion: Option[Long] = None, sinkVersion: Option[Long] = None, maxFailures: Int = 0)
   (implicit codec: Injection[(K,V),(Array[Byte],Array[Byte])]) = {
     new VersionedKeyValSource[K,V](path, sourceVersion, sinkVersion, maxFailures, defaultVersionsToKeep)
@@ -67,6 +67,7 @@ class VersionedKeyValSource[K,V](val path: String, val sourceVersion: Option[Lon
   override def hdfsScheme =
     HadoopSchemeInstance(new KeyValueByteScheme(fields))
 
+  //TODO: release in the next version
   @deprecated("This method is deprecated", "0.1.6")
   def this(path: String, sourceVersion: Option[Long], sinkVersion: Option[Long], maxFailures: Int)
     (implicit @transient codec: Injection[(K,V),(Array[Byte],Array[Byte])]) = 
